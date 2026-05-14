@@ -1,137 +1,161 @@
 'use client';
-import { num, inr, inrFull } from '../lib/format';
+import { useState } from 'react';
+import Icon from './Icon';
+import { Delta } from './Primitives';
+import { num, inr, inrFull, formatHour } from '../lib/format';
 
-// Static park data — spec colours; replace once kpis.visitorsByPark / revenueByPark land
-const PARK_STATIC = [
-  { label: 'UP Darshan',    color: '#1D9E75', pct: 22 },
-  { label: 'Harmony',       color: '#E24B4A', pct: 18 },
-  { label: 'Gautam Buddha', color: '#378ADD', pct: 16 },
-  { label: 'Shivalaya',     color: '#EF9F27', pct: 14 },
-  { label: 'Jungle Trail',  color: '#D4537E', pct: 13 },
-  { label: 'Saat Ajoobe',   color: '#7F77DD', pct: 10 },
-  { label: 'World Park',    color: '#34C4C4', pct:  7 },
+// Static until kpis.visitorsByPark / revenueByPark API fields are available
+const PARKS_7 = [
+  { name: 'UP Darshan',    color: '#1D9E75', visPct: 22, revPct: 24 },
+  { name: 'Harmony',       color: '#E24B4A', visPct: 18, revPct: 19 },
+  { name: 'Gautam Buddha', color: '#378ADD', visPct: 16, revPct: 17 },
+  { name: 'Shivalaya',     color: '#EF9F27', visPct: 14, revPct: 13 },
+  { name: 'Jungle Trail',  color: '#D4537E', visPct: 13, revPct: 12 },
+  { name: 'Saat Ajoobe',   color: '#7F77DD', visPct: 10, revPct:  9 },
+  { name: 'World Park',    color: '#34C4C4', visPct:  7, revPct:  6 },
 ];
 
-const PMT_COLOR = { UPI: '#378ADD', Cash: '#1D9E75', Card: '#7F77DD', Split: '#EF9F27' };
+// Static until API supports period-level revenue — mult approximates daily→weekly→monthly
+const REV_PERIODS = {
+  Today: { mult: 1,    delta: -7.4, label: 'vs yesterday'  },
+  Week:  { mult: 6.6,  delta:  4.2, label: 'vs last week'  },
+  Month: { mult: 26.3, delta: 11.8, label: 'vs last month' },
+};
 
-function splitPct(v, total) { return total ? Math.round((v / total) * 100) : 0; }
-
-function BarRow({ label, fill, displayVal, color }) {
+function KpiCard({ label, icon, value, delta, deltaLabel = 'vs last 7 days avg', extra }) {
   return (
-    <div style={{ marginBottom: 6 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-        <span style={{ color: 'var(--ink-3)' }}>{label}</span>
-        <span className="mono" style={{ color: 'var(--ink-2)', fontWeight: 600 }}>{displayVal}</span>
+    <div className="sec kpi">
+      <div className="kpi-label">
+        {icon && <Icon name={icon} size={13} color="var(--ink-4)"/>}
+        {label}
       </div>
-      <div style={{ height: 3, background: 'rgba(0,0,0,.07)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${Math.min(fill, 100)}%`, background: color, borderRadius: 2, transition: 'width .4s' }}/>
+      <div className="kpi-val">{value}</div>
+      <div className="kpi-row">
+        {delta != null && <Delta value={delta}/>}
+        <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{deltaLabel}</span>
       </div>
+      {extra}
     </div>
   );
 }
 
-function Half({ heading, total, rows }) {
-  return (
-    <div style={{ flex: 1, padding: '10px 12px 12px' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-4)', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
-        {heading}
-      </div>
-      <div className="mono" style={{ fontWeight: 700, fontSize: 17, color: 'var(--ink)', lineHeight: 1.1, marginBottom: 8 }}>
-        {total}
-      </div>
-      {rows.map((r, i) => <BarRow key={i} {...r}/>)}
-    </div>
-  );
-}
-
-function Unit({ title, left, right }) {
-  return (
-    <div className="sec" style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{
-        padding: '8px 12px 7px',
-        borderBottom: '1px solid var(--border)',
-        fontSize: 10.5, fontWeight: 700, color: 'var(--ink-4)',
-        letterSpacing: '.05em', textTransform: 'uppercase',
-      }}>
-        {title}
-      </div>
-      <div style={{ display: 'flex' }}>
-        <Half {...left}/>
-        <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }}/>
-        <Half {...right}/>
-      </div>
-    </div>
-  );
-}
-
-export default function KpiRow({ data, revenueSplits }) {
+export default function KpiRow({ data }) {
+  const [revPeriod, setRevPeriod] = useState('Today');
   if (!data) return null;
 
-  const byCategory = revenueSplits?.byCategory || [];
-  const bySource   = revenueSplits?.bySource   || [];
-  const byPayment  = revenueSplits?.byPayment  || [];
+  const peakLabel = formatHour(data.peakHour);
+  const revCfg    = REV_PERIODS[revPeriod];
+  const revValue  = Math.round(data.totalRevenue * revCfg.mult);
 
-  // Unit 1 — park splits (new fields with static fallback)
-  const parkVisRows = (data.visitorsByPark || PARK_STATIC).map(p => ({
-    label: p.label || p.name, color: p.color, fill: p.pct, displayVal: `${p.pct}%`,
-  }));
-  const parkRevRows = (data.revenueByPark
-    ? data.revenueByPark.map(p => ({ label: p.name, color: p.color, fill: splitPct(p.revenue, data.totalRevenue), displayVal: inr(p.revenue) }))
-    : PARK_STATIC.map(p => ({ label: p.label, color: p.color, fill: p.pct, displayVal: inr(Math.round(data.totalRevenue * p.pct / 100)) }))
+  // Card 1 extra — 7-park visitor % in tiny colored text
+  const visBreakdown = (
+    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: '2px 8px' }}>
+      {PARKS_7.map(p => (
+        <span key={p.name} style={{ fontSize: 10, color: p.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {p.name.split(' ')[0]} {p.visPct}%
+        </span>
+      ))}
+    </div>
   );
 
-  // Unit 2 — ticket source splits
-  const ticketRev     = byCategory.find(c => c.name === 'Tickets')?.value || 0;
-  const srcTotal      = bySource.reduce((s, x) => s + x.value, 0);
-  const ticketCntRows = (data.ticketsBySource
-    ? data.ticketsBySource.map(s => ({ label: s.name, color: s.color, fill: s.pct, displayVal: `${s.pct}%` }))
-    : bySource.map(s => { const p = splitPct(s.value, srcTotal); return { label: s.name, color: s.color, fill: p, displayVal: `${p}%` }; })
+  // Card 2 extra — period toggle + park revenue breakdown
+  const revBreakdown = (
+    <>
+      <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+        {Object.keys(REV_PERIODS).map(p => (
+          <button key={p} onClick={() => setRevPeriod(p)} style={{
+            fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
+            border: '1px solid',
+            borderColor: revPeriod === p ? 'var(--teal)' : 'var(--border)',
+            background:  revPeriod === p ? 'var(--teal-100, #E6F4F1)' : 'transparent',
+            color:       revPeriod === p ? 'var(--teal)' : 'var(--ink-4)',
+            cursor: 'pointer',
+          }}>
+            {p}
+          </button>
+        ))}
+      </div>
+      <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: '2px 8px' }}>
+        {PARKS_7.map(p => (
+          <span key={p.name} style={{ fontSize: 10, color: p.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {p.name.split(' ')[0]} {inr(Math.round(revValue * p.revPct / 100))}
+          </span>
+        ))}
+      </div>
+    </>
   );
-  const ticketRevRows = bySource.map(s => ({
-    label: s.name, color: s.color,
-    fill: splitPct(s.value, srcTotal),
-    displayVal: inr(Math.round(ticketRev * (srcTotal ? s.value / srcTotal : 0))),
-  }));
 
-  // Unit 3 — revenue by category
-  const catTotal = byCategory.reduce((s, c) => s + c.value, 0) || data.totalRevenue;
-  const catRows  = byCategory.filter(c => c.value > 0).map(c => ({
-    label: c.name, color: c.color,
-    fill: splitPct(c.value, catTotal),
-    _pct: `${splitPct(c.value, catTotal)}%`,
-    _inr: inr(c.value),
-  }));
-
-  // Unit 4 — payment mode (rename Others → Split, override colours)
-  const pmtTotal = byPayment.reduce((s, p) => s + p.value, 0);
-  const pmtRows  = byPayment.map(p => {
-    const name  = p.name === 'Others' ? 'Split' : p.name;
-    const color = PMT_COLOR[name] || p.color;
-    return { label: name, color, fill: splitPct(p.value, pmtTotal), _pct: `${splitPct(p.value, pmtTotal)}%`, _inr: inr(p.value) };
-  });
+  // Card 3 extra — source breakdown tiny text
+  const srcBreakdown = (
+    <div style={{ marginTop: 6, fontSize: 10, color: 'var(--ink-4)', display: 'flex', flexWrap: 'wrap', gap: '0 10px' }}>
+      <span>Counter <span className="mono" style={{ color: 'var(--ink-2)', fontWeight: 600 }}>54%</span></span>
+      <span>Web <span className="mono" style={{ color: 'var(--ink-2)', fontWeight: 600 }}>32%</span></span>
+      <span>App <span className="mono" style={{ color: 'var(--ink-2)', fontWeight: 600 }}>14%</span></span>
+    </div>
+  );
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-      <Unit
-        title="Visitors · Park Revenue"
-        left={{ heading: 'Total Visitors', total: num(data.totalVisitors), rows: parkVisRows }}
-        right={{ heading: 'Park Revenue',  total: inrFull(data.totalRevenue), rows: parkRevRows }}
-      />
-      <Unit
-        title="Ticket Transactions"
-        left={{ heading: 'Total Tickets',  total: num(data.totalTickets), rows: ticketCntRows }}
-        right={{ heading: 'Ticket Revenue', total: inrFull(ticketRev),    rows: ticketRevRows }}
-      />
-      <Unit
-        title="Total Revenue"
-        left={{ heading: 'Grand Total',  total: inrFull(catTotal), rows: catRows.map(c => ({ ...c, displayVal: c._pct })) }}
-        right={{ heading: 'By Category', total: inrFull(catTotal), rows: catRows.map(c => ({ ...c, displayVal: c._inr })) }}
-      />
-      <Unit
-        title="Payment Mode"
-        left={{ heading: 'Split %', total: inrFull(pmtTotal), rows: pmtRows.map(p => ({ ...p, displayVal: p._pct })) }}
-        right={{ heading: 'Split ₹', total: inrFull(pmtTotal), rows: pmtRows.map(p => ({ ...p, displayVal: p._inr })) }}
-      />
+    <div className="grid-12">
+      <div className="col-3">
+        <KpiCard
+          label="Total Visitors" icon="users"
+          value={num(data.totalVisitors)}
+          delta={5.8} extra={visBreakdown}
+        />
+      </div>
+      <div className="col-3">
+        <KpiCard
+          label="Total Revenue" icon="chart"
+          value={inrFull(revValue)}
+          delta={revCfg.delta} deltaLabel={revCfg.label} extra={revBreakdown}
+        />
+      </div>
+      <div className="col-3">
+        <KpiCard
+          label="Ticket Transactions" icon="ticket"
+          value={num(data.totalTickets)}
+          delta={6.0} extra={srcBreakdown}
+        />
+      </div>
+      <div className="col-3">
+        <div className="sec kpi" style={{ background: 'linear-gradient(180deg, #FFFFFF 0%, #F6FBF9 100%)' }}>
+          <div className="kpi-label"><Icon name="clock" size={13} color="var(--ink-4)"/> Peak Hour</div>
+          <div className="row" style={{ alignItems: 'flex-end', marginTop: 4, gap: 10 }}>
+            <div className="kpi-val mono" style={{ fontSize: 30 }}>
+              {peakLabel.replace('AM','').replace('PM','')}
+              <span className="unit">{peakLabel.includes('PM') ? 'PM' : 'AM'}</span>
+            </div>
+            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, fontSize: 18, color: 'var(--teal)', lineHeight: 1 }}>
+                {num(data.peakFootfall)}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--ink-4)', letterSpacing: '.04em', textTransform: 'uppercase', fontWeight: 600, marginTop: 3 }}>
+                visitors
+              </div>
+            </div>
+          </div>
+          <div className="kpi-row" style={{ flexWrap: 'wrap' }}>
+            <span className="tag teal">Today's Peak</span>
+            <span style={{ color: 'var(--ink-4)', whiteSpace: 'nowrap' }}>{inr(data.peakHourRevenue)} this hour</span>
+          </div>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'flex-end', gap: 2, height: 20 }}>
+            {(data.sparkPeak || []).map((v, i) => {
+              const maxv = Math.max(...(data.sparkPeak || [1]));
+              const h = (v / maxv) * 100;
+              return (
+                <div key={i} style={{
+                  flex: 1, height: h + '%',
+                  background: i === (data.sparkPeak || []).length - 1 ? 'var(--teal)' : 'var(--teal-100)',
+                  borderRadius: 1.5,
+                }}/>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--ink-4)', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+            <span>Sat</span><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Today</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

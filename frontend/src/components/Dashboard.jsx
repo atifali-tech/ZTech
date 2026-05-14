@@ -4,25 +4,20 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import FilterBar from './FilterBar';
 import KpiRow from './KpiRow';
-import DemographicsSection from './Demographics';
-import RevenueSplits from './RevenueSplits';
 import HourlyChart from './HourlyChart';
-import Heatmap from './Heatmap';
-import WeekendWeekday from './WeekendWeekday';
-import Comparative from './Comparative';
 import TopParksRow from './TopParks';
+import ParkPerformance from './ParkPerformance';
+import RevenueSummary from './RevenueSummary';
 import Icon from './Icon';
-import { num } from '../lib/format';
+import BottomNav from './BottomNav';
 
-export default function Dashboard({ kpis, demographics, revenueSplits, hourly, heatmap, weekendWeekday, comparative, topParks, revenueTrend }) {
+export default function Dashboard({ kpis, revenueSplits, hourly, topParks }) {
   const [filters, setFilters] = useState({
     park: 'All Parks', state: 'All States', city: 'All Cities',
     range: 'Last 7 days', compare: false,
   });
   const [loading,     setLoading]     = useState(false);
   const [exportToast, setExportToast] = useState(null);
-
-  const showComparative = filters.range === 'This Quarter' || filters.range === 'This Year';
 
   const onApply = () => {
     setLoading(true);
@@ -45,7 +40,7 @@ export default function Dashboard({ kpis, demographics, revenueSplits, hourly, h
             <Icon name="info" size={13} color="var(--ink-4)"/>
             Showing data for{' '}
             <strong style={{ color: 'var(--ink)' }}>
-              {filters.park === 'All Parks' ? 'All 5 parks' : filters.park}
+              {filters.park === 'All Parks' ? 'All 7 parks' : filters.park}
             </strong>{' '}
             · {filters.range.toLowerCase()} · Last refreshed -{' '}
             <span className="mono">2 mins ago</span>
@@ -58,19 +53,22 @@ export default function Dashboard({ kpis, demographics, revenueSplits, hourly, h
             <KpiRow data={kpis} revenueSplits={revenueSplits}/>
           </div>
 
-          <DemographicsSection data={demographics}/>
-          <RevenueSplits data={revenueSplits}/>
-          <HourlyChart data={hourly}/>
-          <Heatmap data={heatmap}/>
-          <WeekendWeekday data={weekendWeekday}/>
-          <Comparative data={comparative} visible={showComparative}/>
-          <TopParksRow topParks={topParks} trendData={revenueTrend}/>
+          <div className="grid-2col">
+            <HourlyChart data={hourly}/>
+            <ParkPerformance/>
+          </div>
+          <div className="grid-2col">
+            <RevenueSummary revenueSplits={revenueSplits}/>
+            <TopParksRow topParks={topParks}/>
+          </div>
 
           <div style={{ textAlign: 'center', color: 'var(--ink-5)', fontSize: 11, marginTop: 8 }}>
             ZingParks Ops Console v1.0 · Phase 1 · © NovoStack 2026
           </div>
         </div>
       </div>
+
+      <BottomNav active="dashboard"/>
 
       {exportToast && (
         <div style={{

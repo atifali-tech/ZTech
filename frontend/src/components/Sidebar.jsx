@@ -25,7 +25,6 @@ export default function Sidebar({ active = 'dashboard' }) {
         </div>
       </div>
 
-      <div className="sidebar-section">Live</div>
       <div className="sidebar-nav">
         {NAV.map(it => (
           <Link key={it.id} href={it.href} className={'nav-item' + (active === it.id ? ' active' : '')}>

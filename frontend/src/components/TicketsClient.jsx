@@ -9,14 +9,6 @@ const PAY_MODES  = ['', 'Cash', 'UPI', 'Card', 'Split'];
 const STATUSES   = ['', 'Completed', 'Cancelled', 'Refunded', 'Pending'];
 const PAGE_SIZES = [25, 50, 100];
 
-const SORT_COLS = [
-  { key: 'created_at',   label: 'Date' },
-  { key: 'ticket_id',    label: 'Ticket ID' },
-  { key: 'park_name',    label: 'Park' },
-  { key: 'total_amount', label: 'Amount' },
-  { key: 'status',       label: 'Status' },
-];
-
 // ─── Helpers ─────────────────────────────────────────────────
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
@@ -58,12 +50,9 @@ function ticketCategories(ticket) {
 }
 
 function categoryLabel(name) {
-  return {
-    Adult: 'Adults',
-    Child: 'Children',
-    Toddler: 'Toddlers',
-    'Senior Citizen': 'Senior Citizens',
-  }[name] || name;
+  const n = (name || '').trim().toLowerCase();
+  return { adult: 'Adult', child: 'Child', toddler: 'Toddler', senior_citizen: 'Senior Citizen', 'senior citizen': 'Senior Citizen' }[n]
+    || ((name || '').charAt(0).toUpperCase() + (name || '').slice(1));
 }
 
 function formatCategory(cat, showQuantity) {
@@ -83,15 +72,37 @@ function ticketPayments(ticket) {
 
 function CategoryThread({ ticket }) {
   const categories = ticketCategories(ticket);
-  const showQuantity = categories.length > 1;
+  const payments   = ticketPayments(ticket);
+  const modeStr    = payments.length === 1
+    ? payments[0][0]
+    : payments.map(([m, a]) => `${m} ${money(a)}`).join(' / ');
+
+  if (categories.length === 1) {
+    const cat  = categories[0];
+    const name = categoryLabel(cat.name || ticket.ageCategory);
+    const qty  = cat.quantity != null ? cat.quantity : ticket.quantity;
+    return (
+      <span style={{ color: 'var(--ink-3)', whiteSpace: 'nowrap', fontSize: 12 }}>
+        {name} × {qty} {money(ticket.total)}{' '}
+        <span style={{ color: 'var(--ink-4)' }}>{modeStr}</span>
+      </span>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {categories.map((cat, i) => (
-        <span key={`${cat.name}-${i}`} style={{ color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
-          {formatCategory(cat, showQuantity)}
-        </span>
-      ))}
+      {categories.map((cat, i) => {
+        const name = categoryLabel(cat.name || ticket.ageCategory);
+        const qty  = cat.quantity != null ? cat.quantity : ticket.quantity;
+        return (
+          <span key={`${cat.name}-${i}`} style={{ color: 'var(--ink-3)', whiteSpace: 'nowrap', fontSize: 12 }}>
+            {name} × {qty}
+          </span>
+        );
+      })}
+      <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>
+        {money(ticket.total)} · {modeStr}
+      </span>
     </div>
   );
 }

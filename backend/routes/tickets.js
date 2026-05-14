@@ -44,8 +44,8 @@ router.get('/', async (req, res) => {
     conditions.push(`t.park_id = $${params.length}`);
   }
   if (ageCategory) {
-    params.push(ageCategory);
-    conditions.push(`t.age_category = $${params.length}`);
+    params.push(ageCategory.toLowerCase());
+    conditions.push(`LOWER(t.age_category) = $${params.length}`);
   }
   if (paymentMode) {
     params.push(paymentMode);
