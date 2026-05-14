@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ZTech Parks CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:        oklch(13% 0.012 265);
+    --surface:   oklch(17% 0.012 265);
+    --surface2:  oklch(21% 0.012 265);
+    --border:    oklch(28% 0.01 265);
+    --text:      oklch(94% 0.005 265);
+    --muted:     oklch(58% 0.01 265);
+    --accent:    oklch(65% 0.22 250);
+    --accent-dim:oklch(65% 0.22 250 / 0.15);
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; overflow: hidden; }
+  #root { height: 100%; display: flex; flex-direction: column; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  svg { display: block; }
+  select option { background: #1e1e2e; color: #e2e8f0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+// tweaks-panel.jsx
+// Reusable Tweaks shell + form-control helpers.
+//
+// Owns the host protocol (listens for __activate_edit_mode / __deactivate_edit_mode,
+// posts __edit_mode_available / __edit_mode_set_keys / __edit_mode_dismissed) so
+// individual prototypes don't re-roll it. Ships a consistent set of controls so you
+// don't hand-draw <input type="range">, segmented radios, steppers, etc.
+//
+// Usage (in an HTML file that loads React + Babel):
+//
+//   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+//     "primaryColor": "#D97757",
+//     "fontSize": 16,
+//     "density": "regular",
+//     "dark": false
+//   }/*EDITMODE-END*/;
+//
+//   function App() {
+//     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+//     return (
+//       <div style={{ fontSize: t.fontSize, color: t.primaryColor }}>
+//         Hello
+//         <TweaksPanel>
+//           <TweakSection label="Typography" />
+//           <TweakSlider label="Font size" value={t.fontSize} min={10} max={32} unit="px"
+//                        onChange={(v) => setTweak('fontSize', v)} />
+//           <TweakRadio  label="Density" value={t.density}
+//                        options={['compact', 'regular', 'comfy']}
+//                        onChange={(v) => setTweak('density', v)} />
+//           <TweakSection label="Theme" />
+//           <TweakColor  label="Primary" value={t.primaryColor}
+//                        onChange={(v) => setTweak('primaryColor', v)} />
+//           <TweakToggle label="Dark mode" value={t.dark}
+//                        onChange={(v) => setTweak('dark', v)} />
+//         </TweaksPanel>
+//       </div>
+//     );
+//   }
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    transform:scale(var(--dc-inv-zoom,1));transform-origin:bottom right;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+
+  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;
+    overflow-wrap:anywhere}
+
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+
+  .twk-num{display:flex;align-items:center;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+`;
+
+// ── useTweaks ───────────────────────────────────────────────────────────────
+// Single source of truth for tweak values. setTweak persists via the host
+// (__edit_mode_set_keys → host rewrites the EDITMODE block on disk).
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  // Accepts either setTweak('key', value) or setTweak({ key: value, ... }) so a
+  // useState-style call doesn't write a "[object Object]" key into the persisted
+  // JSON block.
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+  }, []);
+  return [values, setTweak];
+}
+
+// ── TweaksPanel ─────────────────────────────────────────────────────────────
+// Floating shell. Registers the protocol listener BEFORE announcing
+// availability — if the announce ran first, the host's activate could land
+// before our handler exists and the toolbar toggle would silently no-op.
+// The close button posts __edit_mode_dismissed so the host's toolbar toggle
+// flips off in lockstep; the host echoes __deactivate_edit_mode back which
+// is what actually hides the panel.
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', clampToViewport);
+      return () => window.removeEventListener('resize', clampToViewport);
+    }
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" data-noncommentable=""
+           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" aria-label="Close tweaks"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">{children}</div>
+      </div>
+    </>
+  );
+}
+
+// ── Layout helpers ──────────────────────────────────────────────────────────
+
+function TweakSection({ label, children }) {
+  return (
+    <>
+      <div className="twk-sect">{label}</div>
+      {children}
+    </>
+  );
+}
+
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl">
+        <span>{label}</span>
+        {value != null && <span className="twk-val">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+
+  // The active value is read by pointer-move handlers attached for the lifetime
+  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakSelect({ label, value, options, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <select className="twk-field" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'object' ? o.value : o;
+          const l = typeof o === 'object' ? o.label : o;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </TweakRow>
+  );
+}
+
+function TweakText({ label, value, placeholder, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <input className="twk-field" type="text" value={value} placeholder={placeholder}
+             onChange={(e) => onChange(e.target.value)} />
+    </TweakRow>
+  );
+}
+
+function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) {
+  const clamp = (n) => {
+    if (min != null && n < min) return min;
+    if (max != null && n > max) return max;
+    return n;
+  };
+  const startRef = React.useRef({ x: 0, val: 0 });
+  const onScrubStart = (e) => {
+    e.preventDefault();
+    startRef.current = { x: e.clientX, val: value };
+    const decimals = (String(step).split('.')[1] || '').length;
+    const move = (ev) => {
+      const dx = ev.clientX - startRef.current.x;
+      const raw = startRef.current.val + dx * step;
+      const snapped = Math.round(raw / step) * step;
+      onChange(clamp(Number(snapped.toFixed(decimals))));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div className="twk-num">
+      <span className="twk-num-lbl" onPointerDown={onScrubStart}>{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+             onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+      {unit && <span className="twk-num-unit">{unit}</span>}
+    </div>
+  );
+}
+
+function TweakColor({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <input type="color" className="twk-swatch" value={value}
+             onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function TweakButton({ label, onClick, secondary = false }) {
+  return (
+    <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'}
+            onClick={onClick}>{label}</button>
+  );
+}
+
+Object.assign(window, {
+  useTweaks, TweaksPanel, TweakSection, TweakRow,
+  TweakSlider, TweakToggle, TweakRadio, TweakSelect,
+  TweakText, TweakNumber, TweakColor, TweakButton,
+});
+
+
+// ═══════════════════════════════════════════════════════════════════
+// GEOGRAPHY + PARK DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════
+
+const GEO = {
+  'Uttar Pradesh': {
+    cities: {
+      'Lucknow':    ['UP Darshan', 'Harmony', 'Gautam Buddha'],
+      'Prayagraj':  ['Shivalaya'],
+      'Noida':      ['Jungle Trail'],
+      'Moradabad':  ['Saat Ajoobe'],
+    }
+  },
+  'Maharashtra': {
+    cities: {} // no cities/parks defined yet
+  }
+};
+
+const STATES = Object.keys(GEO);
+
+// Muted, professional park colors — desaturated for long-session readability
+const PARK_COLORS = {
+  'UP Darshan':    { color: '#60A5D4', colorDim: 'rgba(96,165,212,0.12)'  }, // steel blue
+  'Harmony':       { color: '#D4845A', colorDim: 'rgba(212,132,90,0.12)'  }, // terracotta
+  'Gautam Buddha': { color: '#9B7EC8', colorDim: 'rgba(155,126,200,0.12)' }, // muted violet
+  'Shivalaya':     { color: '#C9A84C', colorDim: 'rgba(201,168,76,0.12)'  }, // warm gold
+  'Jungle Trail':  { color: '#5BAD8A', colorDim: 'rgba(91,173,138,0.12)'  }, // sage green
+  'Saat Ajoobe':   { color: '#C96B7A', colorDim: 'rgba(201,107,122,0.12)' }, // dusty rose
+};
+
+// Build flat PARKS array from GEO
+const PARKS = [];
+Object.entries(GEO).forEach(([state, stateData]) => {
+  Object.entries(stateData.cities).forEach(([city, parks]) => {
+    parks.forEach(name => {
+      PARKS.push({
+        id: name.toLowerCase().replace(/\s+/g, '-'),
+        name,
+        city,
+        state,
+        ...PARK_COLORS[name],
+      });
+    });
+  });
+});
+
+// Helper: get cities for a state
+function getCitiesForState(state) {
+  if (!state || state === 'All State') return [];
+  return Object.keys(GEO[state]?.cities || {});
+}
+
+// Helper: get parks for state+city
+function getParksForFilter(state, city) {
+  if (!state || state === 'All State') return PARKS;
+  const stateData = GEO[state]?.cities || {};
+  if (!city || city === 'All City') {
+    // All parks across all cities in this state
+    return PARKS.filter(p => p.state === state);
+  }
+  return PARKS.filter(p => p.state === state && p.city === city);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CATEGORIES
+// ═══════════════════════════════════════════════════════════════════
+const CATEGORIES = {
+  Tickets:    ['Adults', 'Kids', 'Senior Citizens', 'Toddlers'],
+  Activities: ['Rock Climbing', 'Zip Line', 'Bungee Jump', 'Go-Kart', 'Paintball'],
+  Parking:    ['Standard Parking', 'Premium Parking', 'Valet'],
+  'F&B':      ['Food', 'Beverages', 'Combo Meal', 'Snacks'],
+};
+const TICKET_TYPES = ['Adults', 'Kids', 'Senior Citizens', 'Toddlers'];
+const PAYMENT_METHODS = ['Credit Card', 'Debit Card', 'Cash', 'Digital Wallet', 'Gift Card'];
+const SOURCES = ['Online', 'On-Site Kiosk', 'Mobile App', 'Front Desk'];
+const STATUSES = ['Completed', 'Pending', 'Refunded', 'Failed'];
+
+// ═══════════════════════════════════════════════════════════════════
+// SEEDED DATA GENERATION
+// ═══════════════════════════════════════════════════════════════════
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+function generateTransactions() {
+  const rng = seededRandom(42);
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+  const transactions = [];
+  const now = new Date('2026-05-01');
+
+  for (let i = 0; i < 1800; i++) {
+    const park = pick(PARKS);
+    const category = pick(Object.keys(CATEGORIES));
+    const subcategory = pick(CATEGORIES[category]);
+    const statusRoll = rng();
+    const status = statusRoll < 0.78 ? 'Completed' : statusRoll < 0.88 ? 'Refunded' : statusRoll < 0.94 ? 'Pending' : 'Failed';
+
+    const daysAgo = Math.floor(rng() * 365);
+    const hoursAgo = Math.floor(rng() * 24);
+    const minsAgo = Math.floor(rng() * 60);
+    const date = new Date(now);
+    date.setDate(date.getDate() - daysAgo);
+    date.setHours(hoursAgo, minsAgo, 0, 0);
+
+    let amount = 0;
+    if (category === 'Tickets') amount = 120 + rng() * 1800;
+    else if (category === 'Activities') amount = 200 + rng() * 1200;
+    else if (category === 'Parking') amount = 50 + rng() * 350;
+    else amount = 40 + rng() * 600;
+
+    transactions.push({
+      id: 'TXN-' + String(10000 + i).padStart(5, '0'),
+      date,
+      park,
+      category,
+      subcategory,
+      paymentMethod: pick(PAYMENT_METHODS),
+      source: pick(SOURCES),
+      amount: parseFloat(amount.toFixed(2)),
+      status,
+    });
+  }
+  return transactions.sort((a, b) => b.date - a.date);
+}
+
+const ALL_TRANSACTIONS = generateTransactions();
+
+// Day-wise revenue for a date range
+function getDayWiseRevenue(txns, dateRange) {
+  const { from, to } = dateRange;
+  const days = [];
+  const cur = new Date(from);
+  while (cur <= to) {
+    const label = (cur.getMonth()+1) + '/' + cur.getDate();
+    const dateStr = cur.toDateString();
+    const rev = txns
+      .filter(t => t.status === 'Completed' && t.date.toDateString() === dateStr)
+      .reduce((s, t) => s + t.amount, 0);
+    days.push({ label, value: parseFloat(rev.toFixed(2)), date: new Date(cur) });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+
+// Weekly aggregation of day-wise data
+function getWeeklyRevenue(dayWise) {
+  const weeks = [];
+  for (let i = 0; i < dayWise.length; i += 7) {
+    const chunk = dayWise.slice(i, i + 7);
+    const total = chunk.reduce((s, d) => s + d.value, 0);
+    weeks.push({ label: chunk[0].label + '–' + chunk[chunk.length-1].label, value: parseFloat(total.toFixed(2)) });
+  }
+  return weeks;
+}
+
+function getCategorySplit(txns) {
+  return Object.keys(CATEGORIES).map(cat => ({
+    category: cat,
+    total: txns.filter(t => t.category === cat && t.status === 'Completed').reduce((s, t) => s + t.amount, 0),
+  }));
+}
+
+function getParkRevenue(txns, parks) {
+  return parks.map(park => ({
+    ...park,
+    revenue: txns.filter(t => t.park.id === park.id && t.status === 'Completed').reduce((s, t) => s + t.amount, 0),
+    transactions: txns.filter(t => t.park.id === park.id).length,
+  })).sort((a, b) => b.revenue - a.revenue);
+}
+
+function getTicketTypeSplit(txns) {
+  return TICKET_TYPES.map(type => ({
+    type,
+    total: txns.filter(t => t.category === 'Tickets' && t.subcategory === type && t.status === 'Completed').reduce((s, t) => s + t.amount, 0),
+    count: txns.filter(t => t.category === 'Tickets' && t.subcategory === type).length,
+  }));
+}
+
+function getVisitorBreakdown(txns) {
+  const completed = txns.filter(t => t.status === 'Completed');
+  const total = Math.round(completed.length * 1.3);
+  const adults = Math.round(total * 0.52);
+  const kids = Math.round(total * 0.28);
+  const seniors = Math.round(total * 0.13);
+  const toddlers = total - adults - kids - seniors;
+  return { total, adults, kids, seniors, toddlers };
+}
+
+// Date range presets
+const DATE_RANGES = [
+  { label: 'Last 7 days',  days: 7 },
+  { label: 'Last 30 days', days: 30 },
+  { label: 'Last 90 days', days: 90 },
+  { label: 'FY 2026',      fy: true },
+];
+
+function getDateRange(preset) {
+  const now = new Date('2026-05-01');
+  if (preset.fy) {
+    return { from: new Date('2026-04-01'), to: new Date('2027-03-31'), label: 'FY 2026 (Apr 2026 – Mar 2027)' };
+  }
+  const from = new Date(now);
+  from.setDate(from.getDate() - preset.days + 1);
+  from.setHours(0,0,0,0);
+  const to = new Date(now);
+  to.setHours(23,59,59,999);
+  return { from, to, label: preset.label };
+}
+
+function filterTxnsByDate(txns, dateRange) {
+  return txns.filter(t => t.date >= dateRange.from && t.date <= dateRange.to);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+const fmtK = (n) => {
+  if (n >= 10000000) return '₹' + (n/10000000).toFixed(1) + 'Cr';
+  if (n >= 100000) return '₹' + (n/100000).toFixed(1) + 'L';
+  if (n >= 1000) return '₹' + (n/1000).toFixed(1) + 'K';
+  return fmt(n);
+};
+const fmtNum = (n) => new Intl.NumberFormat('en-IN').format(n);
+
+// ═══════════════════════════════════════════════════════════════════
+// ICONS
+// ═══════════════════════════════════════════════════════════════════
+const Icon = ({ name, size = 16, color = 'currentColor' }) => {
+  const paths = {
+    dashboard:    <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
+    transactions: <><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></>,
+    filter:       <><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></>,
+    download:     <><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
+    search:       <><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></>,
+    chevronLeft:  <><polyline points="15 18 9 12 15 6"/></>,
+    chevronRight: <><polyline points="9 18 15 12 9 6"/></>,
+    chevronDown:  <><polyline points="6 9 12 15 18 9"/></>,
+    arrowUp:      <><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></>,
+    arrowDown:    <><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></>,
+    eye:          <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
+    refund:       <><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></>,
+    x:            <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+    sort:         <><path d="M3 6h18M6 12h12M9 18h6"/></>,
+    dollar:       <><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></>,
+    users:        <><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>,
+    mapPin:       <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></>,
+    emptyBox:     <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {paths[name] || null}
+    </svg>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// TWEAKS CONFIG
+// ═══════════════════════════════════════════════════════════════════
+const TWEAK_DEFAULS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#3b82f6",
+  "chartDays": 14
+}/*EDITMODE-END*/;
+
+// ═══════════════════════════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════════════════════════
+const LineChart = ({ data, visibleParks, days }) => {
+  const W = 100, H = 100;
+  const pad = { top: 6, right: 4, bottom: 18, left: 36 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const sliced = {};
+  visibleParks.forEach(p => { sliced[p.id] = (data[p.id] || []).slice(-days); });
+
+  const allVals = Object.values(sliced).flat().map(d => d.value);
+  const maxVal = Math.max(...allVals, 1);
+  const labels = visibleParks.length ? (sliced[visibleParks[0].id] || []).map(d => d.label) : [];
+
+  const xScale = (i, len) => pad.left + (i / Math.max(len - 1, 1)) * chartW;
+  const yScale = (v) => pad.top + (1 - v / maxVal) * chartH;
+
+  return (
+    <svg viewBox={"0 0 " + W + " " + H} style={{ width: '100%', height: '100%' }}>
+      {[0,1,2,3,4].map(i => {
+        const y = pad.top + (i / 4) * chartH;
+        const val = maxVal * (1 - i / 4);
+        return (
+          <g key={i}>
+            <line x1={pad.left} y1={y} x2={W - pad.right} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="0.4" />
+            <text x={pad.left - 2} y={y + 1} fontSize="3.5" fill="#555" textAnchor="end" dominantBaseline="middle">{fmtK(val)}</text>
+          </g>
+        );
+      })}
+      {labels.map((lbl, i) => {
+        if (labels.length > 1 && i % Math.ceil(labels.length / 5) !== 0 && i !== labels.length - 1) return null;
+        return <text key={i} x={xScale(i, labels.length)} y={H - pad.bottom + 5} fontSize="3" fill="#555" textAnchor="middle">{lbl}</text>;
+      })}
+      {visibleParks.map(park => {
+        const pts = sliced[park.id] || [];
+        if (!pts.length) return null;
+        const d = pts.map((pt, i) => (i === 0 ? 'M' : 'L') + xScale(i, pts.length).toFixed(2) + ',' + yScale(pt.value).toFixed(2)).join(' ');
+        return <path key={park.id} d={d} stroke={park.color} strokeWidth="1.2" fill="none" strokeLinejoin="round" strokeLinecap="round" />;
+      })}
+    </svg>
+  );
+};
+
+const DonutChart = ({ data }) => {
+  const COLORS = ['#60A5D4','#D4845A','#5BAD8A','#C9A84C'];
+  const total = data.reduce((s, d) => s + d.total, 0);
+  if (!total) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'var(--muted)', fontSize:12 }}>No data</div>;
+  const R = 32, CX = 50, CY = 44, thick = 10;
+  let angle = -Math.PI / 2;
+  const segments = data.map((d, i) => {
+    const frac = d.total / total;
+    const startAngle = angle;
+    angle += frac * 2 * Math.PI;
+    const endAngle = angle;
+    const x1 = CX + R * Math.cos(startAngle), y1 = CY + R * Math.sin(startAngle);
+    const x2 = CX + R * Math.cos(endAngle), y2 = CY + R * Math.sin(endAngle);
+    const large = frac > 0.5 ? 1 : 0;
+    return { d: 'M' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' A' + R + ',' + R + ',0,' + large + ',1,' + x2.toFixed(2) + ',' + y2.toFixed(2), color: COLORS[i], label: d.category, pct: (frac * 100).toFixed(1) };
+  });
+  return (
+    <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
+      {segments.map((s, i) => <path key={i} d={s.d} stroke={s.color} strokeWidth={thick} fill="none" strokeLinecap="butt" />)}
+      <text x={CX} y={CY - 3} textAnchor="middle" fontSize="7" fill="white" fontWeight="600">{fmtK(total)}</text>
+      <text x={CX} y={CY + 7} textAnchor="middle" fontSize="3.5" fill="#666">total rev</text>
+      {segments.map((s, i) => (
+        <g key={i} transform={"translate(2, " + (72 + i * 7) + ")"}>
+          <rect width="4" height="4" rx="1" fill={s.color} />
+          <text x="7" y="4" fontSize="4" fill="#999">{s.label}</text>
+          <text x="96" y="4" fontSize="4" fill="#ccc" textAnchor="end">{s.pct}%</text>
+        </g>
+      ))}
+    </svg>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// SHARED UI
+// ═══════════════════════════════════════════════════════════════════
+const StatusBadge = ({ status }) => {
+  const colors = { Completed: '#34d399', Pending: '#fbbf24', Refunded: '#a78bfa', Failed: '#f87171' };
+  const c = colors[status] || '#999';
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, background: c + '18', color:c, borderRadius:4, padding:'2px 7px', fontSize:11, fontWeight:500 }}>
+      <span style={{ width:5, height:5, borderRadius:'50%', background:c, flexShrink:0 }} />{status}
+    </span>
+  );
+};
+
+const EmptyState = ({ message = 'No data available for selected filters' }) => (
+  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', minHeight:120, gap:8, color:'var(--muted)' }}>
+    <Icon name="emptyBox" size={28} color="var(--border)" />
+    <span style={{ fontSize:13, fontWeight:500, color:'var(--muted)' }}>{message}</span>
+  </div>
+);
+
+// Styled dropdown that shows selected value clearly
+const FilterSelect = ({ value, onChange, options, placeholder, style: s }) => (
+  <div style={{ position:'relative', display:'inline-flex', alignItems:'center', ...s }}>
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{
+        appearance:'none', background:'var(--surface2)', border:'1px solid ' + (value ? 'var(--accent)' : 'var(--border)'),
+        borderRadius:7, color: value ? 'var(--text)' : 'var(--muted)', fontSize:12, fontWeight: value ? 500 : 400,
+        padding:'6px 28px 6px 10px', cursor:'pointer', outline:'none', minWidth:110,
+        transition:'border-color 0.15s',
+      }}
+    >
+      <option value="">{placeholder}</option>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+    <span style={{ position:'absolute', right:8, pointerEvents:'none', color:'var(--muted)' }}>
+      <Icon name="chevronDown" size={12} />
+    </span>
+  </div>
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTEXT BAR — two rows: dropdowns + always-visible breadcrumb
+// ═══════════════════════════════════════════════════════════════════
+const ContextBar = ({ selState, selCity, selParkIds, onStateChange, onCityChange, onTogglePark, dateRangeLabel }) => {
+  const availCities = getCitiesForState(selState);
+  const availParks = getParksForFilter(selState, selCity);
+  const hasParks = availParks.length > 0;
+
+  // Build human-readable breadcrumb parts
+  const crumbState = selState || 'All States';
+  const crumbCity  = selCity  || (selState && availCities.length === 0 ? 'No cities' : 'All Cities');
+  const activeParkNames = selParkIds.length === 0
+    ? (hasParks ? 'All Parks' : 'No parks configured')
+    : availParks.filter(p => selParkIds.includes(p.id)).map(p => p.name).join(', ') || 'All Parks';
+
+  const SEPARATOR = <span style={{ color:'var(--border)', margin:'0 6px', fontSize:14, lineHeight:1 }}>›</span>;
+
+  return (
+    <div style={{ background:'oklch(10.5% 0.012 265)', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+
+      {/* ── ROW 1: dropdowns + park chips ─────────────────────── */}
+      <div style={{ padding:'0 20px', display:'flex', alignItems:'center', gap:0, height:50, borderBottom:'1px solid oklch(22% 0.01 265)' }}>
+
+        {/* State */}
+        <div style={{ display:'flex', alignItems:'center', gap:7, paddingRight:14, borderRight:'1px solid var(--border)' }}>
+          <span style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.07em', flexShrink:0 }}>State</span>
+          <FilterSelect value={selState} onChange={onStateChange} options={STATES} placeholder="All States" />
+        </div>
+
+        {/* City */}
+        <div style={{ display:'flex', alignItems:'center', gap:7, padding:'0 14px', borderRight:'1px solid var(--border)' }}>
+          <span style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.07em', flexShrink:0 }}>City</span>
+          <FilterSelect
+            value={selCity}
+            onChange={onCityChange}
+            options={availCities}
+            placeholder={selState && availCities.length === 0 ? 'No cities' : 'All Cities'}
+          />
+        </div>
+
+        {/* Park chips */}
+        <div style={{ display:'flex', alignItems:'center', gap:7, paddingLeft:14, flex:1, overflow:'hidden' }}>
+          <span style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.07em', flexShrink:0 }}>Park</span>
+          {!hasParks ? (
+            <span style={{ fontSize:12, color:'var(--muted)', fontStyle:'italic' }}>No parks configured for this state</span>
+          ) : (
+            <div style={{ display:'flex', gap:5, overflowX:'auto', overflowY:'hidden', paddingBottom:2 }}>
+              <button onClick={() => onTogglePark(null)} style={{
+                flexShrink:0, padding:'3px 11px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer',
+                border:'1.5px solid ' + (selParkIds.length === 0 ? 'var(--accent)' : 'var(--border)'),
+                background: selParkIds.length === 0 ? 'var(--accent-dim)' : 'transparent',
+                color: selParkIds.length === 0 ? 'var(--accent)' : 'var(--muted)', transition:'all 0.12s'
+              }}>All</button>
+              {availParks.map(park => {
+                const active = selParkIds.includes(park.id);
+                return (
+                  <button key={park.id} onClick={() => onTogglePark(park.id)} style={{
+                    flexShrink:0, display:'flex', alignItems:'center', gap:6, padding:'3px 11px', borderRadius:20,
+                    fontSize:11, fontWeight:600, cursor:'pointer', transition:'all 0.12s',
+                    border:'1.5px solid ' + (active ? park.color : 'var(--border)'),
+                    background: active ? park.colorDim : 'transparent',
+                    color: active ? park.color : 'var(--muted)',
+                    boxShadow: active ? ('0 0 0 1px ' + park.color + '22') : 'none',
+                  }}>
+                    <span style={{ width:7, height:7, borderRadius:'50%', background: active ? park.color : 'oklch(35% 0.01 265)', flexShrink:0 }} />
+                    {park.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── ROW 2: always-visible applied filter breadcrumb ───── */}
+      {/* ── ROW 2: always-visible applied filter breadcrumb ───── */}
+      <div style={{ padding:'7px 20px', display:'flex', alignItems:'center', gap:0, background:'oklch(8.5% 0.01 265)', borderTop:'1px solid oklch(20% 0.01 265)' }}>
+        <Icon name="filter" size={11} color="oklch(55% 0.01 265)" />
+        <span style={{ fontSize:11, color:'oklch(55% 0.01 265)', marginLeft:6, fontWeight:500 }}>Viewing:</span>
+
+        {/* State crumb */}
+        <span style={{ fontSize:11, fontWeight:700, color: selState ? 'oklch(88% 0.008 265)' : 'oklch(55% 0.01 265)', marginLeft:8,
+          background: selState ? 'oklch(22% 0.01 265)' : 'transparent',
+          padding: selState ? '1px 7px' : '0', borderRadius:4 }}>{crumbState}</span>
+        {SEPARATOR}
+        {/* City crumb */}
+        <span style={{ fontSize:11, fontWeight:700, color: selCity ? 'oklch(88% 0.008 265)' : 'oklch(55% 0.01 265)',
+          background: selCity ? 'oklch(22% 0.01 265)' : 'transparent',
+          padding: selCity ? '1px 7px' : '0', borderRadius:4 }}>{crumbCity}</span>
+        {SEPARATOR}
+        {/* Park crumb */}
+        {selParkIds.length === 0 ? (
+          <span style={{ fontSize:11, fontWeight:700, color: hasParks ? 'var(--accent)' : 'oklch(55% 0.01 265)' }}>{activeParkNames}</span>
+        ) : (
+          <span style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+            {availParks.filter(p => selParkIds.includes(p.id)).map((p, i) => (
+              <span key={p.id} style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:11, fontWeight:700,
+                color:p.color, background: p.colorDim, borderRadius:4, padding:'1px 7px' }}>
+                <span style={{ width:6, height:6, borderRadius:'50%', background:p.color, display:'inline-block', flexShrink:0 }} />
+                {p.name}{i < selParkIds.length - 1 ? ',' : ''}
+              </span>
+            ))}
+          </span>
+        )}
+
+        {/* Date range */}
+        {SEPARATOR}
+        <span style={{ fontSize:11, fontWeight:700, color:'oklch(75% 0.12 250)',
+          background:'oklch(65% 0.15 250 / 0.12)', borderRadius:4, padding:'1px 8px' }}>
+          {dateRangeLabel || 'Last 90 days'}
+        </span>
+
+        {/* Reset */}
+        {(selState || selCity || selParkIds.length > 0) && (
+          <button onClick={() => onStateChange('')}
+            style={{ marginLeft:14, fontSize:11, color:'oklch(55% 0.01 265)', background:'transparent',
+              border:'1px solid oklch(28% 0.01 265)', borderRadius:5, padding:'2px 9px', cursor:'pointer',
+              transition:'color 0.15s, border-color 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.color='var(--text)'; e.currentTarget.style.borderColor='var(--muted)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color='oklch(55% 0.01 265)'; e.currentTarget.style.borderColor='oklch(28% 0.01 265)'; }}
+          >Reset all</button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// CHART COMPONENTS
+// ═══════════════════════════════════════════════════════════════════
+
+// Horizontal bar chart — used for Category Split, Park Revenue, Ticket Type
+// No percentages — just label + bar + ₹ value
+const HBarChart = ({ data, colorKey = 'color', labelKey = 'label', valueKey = 'value', formatVal = fmtK }) => {
+  const max = Math.max(...data.map(d => d[valueKey]), 1);
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      {data.map((d, i) => {
+        const pct = (d[valueKey] / max) * 100;
+        const col = d[colorKey] || ['#38BDF8','#FB923C','#4ADE80','#FACC15','#C084FC','#F43F5E'][i % 6];
+        return (
+          <div key={d[labelKey]}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+              <span style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{d[labelKey]}</span>
+              <span style={{ fontFamily:'DM Mono', fontSize:12, fontWeight:500, color:'var(--text)' }}>{formatVal(d[valueKey])}</span>
+            </div>
+            <div style={{ height:10, background:'var(--surface2)', borderRadius:5, overflow:'hidden' }}>
+              <div style={{ height:'100%', width: pct + '%', background: col, borderRadius:5, minWidth: d[valueKey] > 0 ? 6 : 0, transition:'width 0.4s cubic-bezier(0.4,0,0.2,1)' }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// Full-width day-wise revenue chart with hover tooltip
+const BarChart = ({ data, color = 'var(--accent)' }) => {
+  const [hovered, setHovered] = useState(null);
+  if (!data.length) return <EmptyState />;
+
+  const max = Math.max(...data.map(d => d.value), 1);
+  const accentHex = '#3b82f6'; // fallback for gradient
+
+  // Auto-skip labels to avoid overlap — show ~8 labels max
+  const step = Math.ceil(data.length / 8);
+
+  return (
+    <div style={{ position:'relative', width:'100%', height:'100%' }}>
+      {/* Tooltip */}
+      {hovered !== null && data[hovered] && (
+        <div style={{
+          position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
+          background:'oklch(22% 0.015 265)', border:'1px solid var(--border)',
+          borderRadius:8, padding:'7px 14px', zIndex:10, pointerEvents:'none',
+          display:'flex', flexDirection:'column', alignItems:'center', gap:2, whiteSpace:'nowrap',
+        }}>
+          <span style={{ fontSize:11, color:'var(--muted)' }}>{data[hovered].label}</span>
+          <span style={{ fontFamily:'DM Mono', fontSize:14, fontWeight:600, color:'var(--text)' }}>{fmtK(data[hovered].value)}</span>
+        </div>
+      )}
+
+      {/* Chart area — flex bars */}
+      <div style={{ display:'flex', alignItems:'flex-end', height:'calc(100% - 28px)', gap:2, paddingLeft:44 }}>
+        {/* Y-axis labels — absolute */}
+        <div style={{ position:'absolute', left:0, top:0, bottom:28, width:40, display:'flex', flexDirection:'column', justifyContent:'space-between', pointerEvents:'none' }}>
+          {[1,0.75,0.5,0.25,0].map((f, i) => (
+            <span key={i} style={{ fontFamily:'DM Mono', fontSize:10, color:'var(--muted)', textAlign:'right', display:'block', lineHeight:1 }}>{fmtK(max * f)}</span>
+          ))}
+        </div>
+
+        {/* Bars */}
+        {data.map((d, i) => {
+          const pct = max > 0 ? (d.value / max) * 100 : 0;
+          const isHov = hovered === i;
+          return (
+            <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', height:'100%', justifyContent:'flex-end', cursor:'pointer' }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <div style={{
+                width:'70%', borderRadius:'3px 3px 0 0',
+                height: pct + '%', minHeight: d.value > 0 ? 3 : 0,
+                background: isHov
+                  ? 'linear-gradient(to top, #60a5fa, #38BDF8)'
+                  : 'linear-gradient(to top, var(--accent), ' + (color === 'var(--accent)' ? '#60a5fa' : color) + ')',
+                opacity: isHov ? 1 : 0.75,
+                transition:'height 0.3s, opacity 0.15s',
+              }} />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* X-axis labels */}
+      <div style={{ display:'flex', alignItems:'flex-start', height:24, paddingLeft:44, gap:2, marginTop:4 }}>
+        {data.map((d, i) => {
+          const show = i === 0 || i === data.length - 1 || i % step === 0;
+          return (
+            <div key={i} style={{ flex:1, textAlign:'center', overflow:'hidden' }}>
+              {show && <span style={{ fontFamily:'DM Mono', fontSize:9, color:'var(--muted)', display:'block', whiteSpace:'nowrap' }}>{d.label}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// Card wrapper
+const ChartCard = ({ title, subtitle, children, action }) => (
+  <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'18px 20px' }}>
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+      <div>
+        <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', letterSpacing:'-0.01em' }}>{title}</div>
+        {subtitle && <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{subtitle}</div>}
+      </div>
+      {action}
+    </div>
+    {children}
+  </div>
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════════
+const Dashboard = ({ filteredTxns, filteredParks, tweaks, dateRangeIdx, onDateRangeChange }) => {
+  const [dayToggle, setDayToggle] = useState('daily'); // 'daily' | 'weekly'
+
+  const dateRange = useMemo(() => getDateRange(DATE_RANGES[dateRangeIdx]), [dateRangeIdx]);
+  const dateTxns = useMemo(() => filterTxnsByDate(filteredTxns, dateRange), [filteredTxns, dateRange]);
+
+  const completed  = dateTxns.filter(t => t.status === 'Completed');
+  const totalRev   = completed.reduce((s, t) => s + t.amount, 0);
+  const totalTxns  = dateTxns.length;
+
+  const catSplit       = useMemo(() => getCategorySplit(dateTxns), [dateTxns]);
+  const parkRevenue    = useMemo(() => getParkRevenue(dateTxns, filteredParks), [dateTxns, filteredParks]);
+  const ticketSplit    = useMemo(() => getTicketTypeSplit(dateTxns), [dateTxns]);
+  const visitorData    = useMemo(() => getVisitorBreakdown(dateTxns), [dateTxns]);
+  const dayWise        = useMemo(() => getDayWiseRevenue(dateTxns, dateRange), [dateTxns, dateRange]);
+  const weeklyData     = useMemo(() => getWeeklyRevenue(dayWise), [dayWise]);
+  const chartData      = dayToggle === 'daily' ? dayWise : weeklyData;
+
+  const noData = dateTxns.length === 0;
+
+  // Category chart data
+  const catChartData = catSplit.map((c, i) => ({
+    label: c.category, value: c.total, color: ['#60A5D4','#D4845A','#5BAD8A','#C9A84C'][i],
+  }));
+
+  // Park chart data
+  const parkChartData = parkRevenue.map(p => ({ label: p.name, value: p.revenue, color: p.color }));
+
+  // Ticket type chart data
+  const TICKET_COLORS = { Adults:'#60A5D4', Kids:'#5BAD8A', 'Senior Citizens':'#C9A84C', Toddlers:'#9B7EC8' };
+  const ticketChartData = ticketSplit.map(t => ({ label: t.type, value: t.total, color: TICKET_COLORS[t.type] }));
+
+  return (
+    <div style={{ flex:1, overflowY:'auto', padding:24, display:'flex', flexDirection:'column', gap:22 }}>
+
+      {/* Header + date range */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div>
+          <h1 style={{ fontSize:18, fontWeight:700, letterSpacing:'-0.02em' }}>Dashboard</h1>
+          <p style={{ fontSize:12, color:'oklch(72% 0.008 265)', marginTop:5, display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ background:'oklch(65% 0.15 250 / 0.15)', color:'oklch(72% 0.15 250)', border:'1px solid oklch(65% 0.15 250 / 0.25)', borderRadius:6, padding:'3px 10px', fontWeight:700, fontSize:12, letterSpacing:'-0.01em' }}>{dateRange.label}</span>
+            <span style={{ color:'oklch(65% 0.008 265)', fontWeight:500 }}>
+              {dateRange.from.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'})}
+              {' \u2013 '}
+              {dateRange.to > new Date('2026-05-01') ? '31 Mar 2027' : dateRange.to.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'})}
+            </span>
+          </p>
+        </div>
+        {/* Date range picker */}
+        <div style={{ display:'flex', gap:4, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:3 }}>
+          {DATE_RANGES.map((r, i) => (
+            <button key={r.label} onClick={() => onDateRangeChange(i)} style={{
+              padding:'5px 12px', borderRadius:6, fontSize:11, fontWeight:600, cursor:'pointer', border:'none',
+              background: dateRangeIdx === i ? 'var(--accent-dim)' : 'transparent',
+              color: dateRangeIdx === i ? 'var(--accent)' : 'var(--muted)',
+              transition:'all 0.12s',
+            }}>{r.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {noData ? (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, minHeight:200 }}>
+          <Icon name="emptyBox" size={40} color="var(--border)" />
+          <div style={{ fontSize:15, fontWeight:500, color:'var(--muted)' }}>No data for selected filters</div>
+          <div style={{ fontSize:12, color:'var(--border)' }}>Try a different state, city, park or date range</div>
+        </div>
+      ) : (
+        <>
+          {/* ── KPI strip ─────────────────────────────────────── */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            {[
+              { label:'Total Revenue',      value: fmtK(totalRev),        sub:'Completed transactions only', icon:'dollar' },
+              { label:'Total Transactions', value: fmtNum(totalTxns),     sub:'All statuses included',       icon:'transactions' },
+              { label:'Total Visitors',     value: fmtNum(visitorData.total), sub:'Estimated from completed',icon:'users' },
+            ].map(({ label, value, sub, icon }) => (
+              <div key={label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'16px 18px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+                  <span style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>{label}</span>
+                  <Icon name={icon} size={14} color="var(--accent)" />
+                </div>
+                <div style={{ fontFamily:'DM Mono', fontSize:24, fontWeight:500, letterSpacing:'-0.02em', color:'var(--text)' }}>{value}</div>
+                <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Day-wise Revenue ───────────────────────────────── */}
+          <ChartCard
+            title="Day-wise Revenue"
+            subtitle={'Daily revenue · ' + dateRange.label}
+            action={
+              <div style={{ display:'flex', gap:3, background:'var(--surface2)', borderRadius:6, padding:2 }}>
+                {['daily','weekly'].map(v => (
+                  <button key={v} onClick={() => setDayToggle(v)} style={{ padding:'3px 10px', borderRadius:5, fontSize:11, fontWeight:600, cursor:'pointer', border:'none', background: dayToggle===v ? 'var(--accent-dim)' : 'transparent', color: dayToggle===v ? 'var(--accent)' : 'var(--muted)' }}>
+                    {v.charAt(0).toUpperCase()+v.slice(1)}
+                  </button>
+                ))}
+              </div>
+            }
+          >
+            <div style={{ height:240 }}>
+              <BarChart data={chartData} color="var(--accent)" />
+            </div>
+          </ChartCard>
+
+          {/* ── Revenue Breakdowns ─────────────────────────────── */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            {/* Category */}
+            <ChartCard title="Revenue by Category" subtitle="Tickets · Activities · Parking · F&B">
+              <HBarChart data={catChartData} colorKey="color" labelKey="label" valueKey="value" />
+            </ChartCard>
+
+            {/* Park */}
+            <ChartCard title="Revenue by Park" subtitle="Contribution per park">
+              {parkChartData.length === 0 ? <EmptyState /> : (
+                <HBarChart data={parkChartData} colorKey="color" labelKey="label" valueKey="value" />
+              )}
+            </ChartCard>
+          </div>
+
+          {/* ── Ticket Type + Visitor Breakdown ───────────────── */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            {/* Ticket types */}
+            <ChartCard title="Revenue by Ticket Type" subtitle="Adults · Kids · Senior Citizens · Toddlers">
+              <HBarChart data={ticketChartData} colorKey="color" labelKey="label" valueKey="value" />
+            </ChartCard>
+
+            {/* Visitor breakdown */}
+            <ChartCard title="Visitor Breakdown" subtitle="Estimated from completed ticket transactions">
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {/* Total */}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 14px', background:'var(--surface2)', borderRadius:8 }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Total Visitors</span>
+                  <span style={{ fontFamily:'DM Mono', fontSize:20, fontWeight:600, color:'var(--accent)' }}>{fmtNum(visitorData.total)}</span>
+                </div>
+                {/* Breakdown rows */}
+                {[
+                  { label:'Adults',          value: visitorData.adults,   pct: (visitorData.adults / visitorData.total * 100).toFixed(0),   color:'#38BDF8' },
+                  { label:'Kids',            value: visitorData.kids,     pct: (visitorData.kids / visitorData.total * 100).toFixed(0),     color:'#4ADE80' },
+                  { label:'Senior Citizens', value: visitorData.seniors,  pct: (visitorData.seniors / visitorData.total * 100).toFixed(0),  color:'#FACC15' },
+                  { label:'Toddlers',        value: visitorData.toddlers, pct: (visitorData.toddlers / visitorData.total * 100).toFixed(0), color:'#C084FC' },
+                ].map(row => (
+                  <div key={row.label} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', background:row.color, flexShrink:0 }} />
+                    <span style={{ flex:1, fontSize:12, fontWeight:500 }}>{row.label}</span>
+                    <div style={{ width:80, height:6, background:'var(--surface2)', borderRadius:3 }}>
+                      <div style={{ height:'100%', borderRadius:3, background:row.color, width:row.pct + '%' }} />
+                    </div>
+                    <span style={{ fontFamily:'DM Mono', fontSize:12, fontWeight:500, width:52, textAlign:'right', color:'var(--text)' }}>{fmtNum(row.value)}</span>
+                    <span style={{ fontFamily:'DM Mono', fontSize:11, color:'var(--muted)', width:30, textAlign:'right' }}>{row.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </ChartCard>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// TRANSACTION DETAIL DRAWER
+// ═══════════════════════════════════════════════════════════════════
+const DetailDrawer = ({ txn, onClose }) => {
+  if (!txn) return null;
+  const fmtDate = (d) => d.toLocaleDateString('en-IN', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  return (
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:40, backdropFilter:'blur(2px)' }} />
+      <div style={{ position:'fixed', right:0, top:0, bottom:0, width:360, background:'var(--surface)', borderLeft:'1px solid var(--border)', zIndex:50, display:'flex', flexDirection:'column', padding:22, gap:18 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:11, color:'var(--muted)', marginBottom:2 }}>Transaction Detail</div>
+            <div style={{ fontFamily:'DM Mono', fontSize:14, fontWeight:500 }}>{txn.id}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'var(--surface2)', border:'none', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)' }}>
+            <Icon name="x" size={15} />
+          </button>
+        </div>
+        <div style={{ background:'var(--surface2)', borderRadius:8, padding:'14px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div style={{ fontSize:11, color:'var(--muted)', marginBottom:4 }}>Amount</div>
+            <div style={{ fontFamily:'DM Mono', fontSize:22, fontWeight:500 }}>{fmt(txn.amount)}</div>
+          </div>
+          <StatusBadge status={txn.status} />
+        </div>
+        {[
+          ['Park', <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}><span style={{ width:7, height:7, borderRadius:'50%', background:txn.park.color }} /><span style={{ color:txn.park.color, fontWeight:500 }}>{txn.park.name}</span></span>],
+          ['State / City', txn.park.state + ' · ' + txn.park.city],
+          ['Date & Time', <span style={{ fontFamily:'DM Mono', fontSize:11 }}>{fmtDate(txn.date)}</span>],
+          ['Category', txn.category],
+          ['Sub-category', txn.subcategory],
+          ['Payment', txn.paymentMethod],
+          ['Source', txn.source],
+        ].map(([label, val]) => (
+          <div key={label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:'1px solid var(--border)' }}>
+            <span style={{ fontSize:12, color:'var(--muted)' }}>{label}</span>
+            <span style={{ fontSize:12, fontWeight:500 }}>{val}</span>
+          </div>
+        ))}
+        <div style={{ marginTop:'auto', display:'flex', gap:8 }}>
+          {txn.status === 'Completed' && (
+            <button style={{ flex:1, padding:'8px 0', borderRadius:7, border:'1px solid #a78bfa40', background:'#a78bfa15', color:'#a78bfa', fontSize:12, fontWeight:500, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+              <Icon name="refund" size={13} color="#a78bfa" /> Issue Refund
+            </button>
+          )}
+          <button onClick={onClose} style={{ flex:1, padding:'8px 0', borderRadius:7, border:'1px solid var(--border)', background:'transparent', color:'var(--muted)', fontSize:12, fontWeight:500, cursor:'pointer' }}>Close</button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// TRANSACTIONS PAGE
+// ═══════════════════════════════════════════════════════════════════
+const ITEMS_PER_PAGE = 15;
+
+const Transactions = ({ filteredTxns, filteredParks, dateRangeIdx, onDateRangeChange }) => {
+  const [search, setSearch] = useState('');
+  const [localParkIds, setLocalParkIds] = useState([]);
+  const [filterCat, setFilterCat] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPayment, setFilterPayment] = useState('');
+  const [filterSource, setFilterSource] = useState('');
+  const [filterSubcat, setFilterSubcat] = useState('');
+  const [sortCol, setSortCol] = useState('date');
+  const [sortDir, setSortDir] = useState('desc');
+  const [page, setPage] = useState(1);
+  const [detail, setDetail] = useState(null);
+
+  // Date range
+  const dateRange = useMemo(() => getDateRange(DATE_RANGES[dateRangeIdx]), [dateRangeIdx]);
+  const dateTxns = useMemo(() => filterTxnsByDate(filteredTxns, dateRange), [filteredTxns, dateRange]);
+
+  // Reset local park filter when filteredParks changes
+  useEffect(() => { setLocalParkIds([]); setPage(1); }, [filteredParks.map(p=>p.id).join(',')]);
+  // Reset page when date range changes
+  useEffect(() => { setPage(1); }, [dateRangeIdx]);
+
+  const subcats = filterCat ? CATEGORIES[filterCat] || [] : Object.values(CATEGORIES).flat();
+  const activeParkIds = localParkIds.length > 0 ? localParkIds : filteredParks.map(p => p.id);
+
+  const tableData = useMemo(() => {
+    let data = dateTxns.filter(t =>
+      (activeParkIds.length === 0 || activeParkIds.includes(t.park.id)) &&
+      (!filterCat || t.category === filterCat) &&
+      (!filterStatus || t.status === filterStatus) &&
+      (!filterPayment || t.paymentMethod === filterPayment) &&
+      (!filterSource || t.source === filterSource) &&
+      (!filterSubcat || t.subcategory === filterSubcat) &&
+      (!search || t.id.toLowerCase().includes(search.toLowerCase()))
+    );
+    data = [...data].sort((a, b) => {
+      let av, bv;
+      if (sortCol === 'date') { av = a.date; bv = b.date; }
+      else if (sortCol === 'amount') { av = a.amount; bv = b.amount; }
+      else if (sortCol === 'status') { av = a.status; bv = b.status; }
+      else if (sortCol === 'park') { av = a.park.name; bv = b.park.name; }
+      else { av = a[sortCol]; bv = b[sortCol]; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return data;
+  }, [dateTxns, activeParkIds.join(','), filterCat, filterStatus, filterPayment, filterSource, filterSubcat, search, sortCol, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(tableData.length / ITEMS_PER_PAGE));
+  const paginated = tableData.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+  const completedTxns = tableData.filter(t => t.status === 'Completed');
+  const refundedCount = tableData.filter(t => t.status === 'Refunded').length;
+  const totalRev = completedTxns.reduce((s, t) => s + t.amount, 0);
+  const successRate = tableData.length ? ((completedTxns.length / tableData.length) * 100).toFixed(1) : '0.0';
+
+  const handleSort = (col) => { if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortCol(col); setSortDir('desc'); } setPage(1); };
+  const resetFilters = () => { setLocalParkIds([]); setFilterCat(''); setFilterStatus(''); setFilterPayment(''); setFilterSource(''); setFilterSubcat(''); setSearch(''); setPage(1); };
+
+  const SortIcon = ({ col }) => {
+    if (sortCol !== col) return <span style={{ color:'var(--border)', marginLeft:3 }}><Icon name="sort" size={10} /></span>;
+    return <span style={{ color:'var(--accent)', marginLeft:3 }}><Icon name={sortDir === 'asc' ? 'arrowUp' : 'arrowDown'} size={10} /></span>;
+  };
+  const Th = ({ col, label, style: s }) => (
+    <th onClick={col ? () => handleSort(col) : null} style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.06em', cursor: col ? 'pointer' : 'default', whiteSpace:'nowrap', userSelect:'none', background:'var(--surface2)', position:'sticky', top:0, zIndex:2, ...s }}>
+      <span style={{ display:'inline-flex', alignItems:'center' }}>{label}{col && <SortIcon col={col} />}</span>
+    </th>
+  );
+  const selStyle = { appearance:'none', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:6, color:'var(--text)', fontSize:12, padding:'5px 24px 5px 9px', cursor:'pointer', outline:'none' };
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', padding:20, gap:12 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+        <div>
+          <h1 style={{ fontSize:18, fontWeight:700, letterSpacing:'-0.02em' }}>Transactions</h1>
+          <p style={{ fontSize:12, color:'oklch(65% 0.008 265)', marginTop:4, display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ background:'oklch(65% 0.15 250 / 0.15)', color:'oklch(72% 0.15 250)', border:'1px solid oklch(65% 0.15 250 / 0.25)', borderRadius:6, padding:'2px 9px', fontWeight:700, fontSize:11 }}>{dateRange.label}</span>
+            <span>{dateRange.from.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'})} – {dateRange.to > new Date('2026-05-01') ? '31 Mar 2027' : dateRange.to.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'})}</span>
+            <span style={{ color:'var(--muted)' }}>·</span>
+            <span style={{ color:'var(--muted)' }}>{fmtNum(dateTxns.length)} transactions in period</span>
+          </p>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          {/* Date range picker */}
+          <div style={{ display:'flex', gap:3, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:3 }}>
+            {DATE_RANGES.map((r, i) => (
+              <button key={r.label} onClick={() => onDateRangeChange(i)} style={{
+                padding:'4px 10px', borderRadius:5, fontSize:11, fontWeight:600, cursor:'pointer', border:'none',
+                background: dateRangeIdx === i ? 'var(--accent-dim)' : 'transparent',
+                color: dateRangeIdx === i ? 'var(--accent)' : 'var(--muted)',
+                transition:'all 0.12s',
+              }}>{r.label}</button>
+            ))}
+          </div>
+          <button style={{ display:'flex', alignItems:'center', gap:6, background:'var(--accent-dim)', border:'1px solid var(--accent)', borderRadius:7, padding:'6px 13px', color:'var(--accent)', fontSize:12, fontWeight:500, cursor:'pointer' }}>
+            <Icon name="download" size={13} color="var(--accent)" /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', flexShrink:0 }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+          {/* Search */}
+          <div style={{ position:'relative', display:'flex', alignItems:'center' }}>
+            <span style={{ position:'absolute', left:8, color:'var(--muted)', pointerEvents:'none' }}><Icon name="search" size={12} /></span>
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search TXN ID…" style={{ ...selStyle, paddingLeft:26, width:130 }} />
+          </div>
+
+          {/* Park chips (local to transactions — subset of filteredParks) */}
+          {filteredParks.length > 0 && (
+            <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+              {filteredParks.map(p => {
+                const active = localParkIds.includes(p.id);
+                return (
+                  <button key={p.id} onClick={() => { setLocalParkIds(prev => active ? prev.filter(x => x !== p.id) : [...prev, p.id]); setPage(1); }}
+                    style={{ display:'flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:500, cursor:'pointer', border:'1px solid ' + (active ? p.color : 'var(--border)'), background: active ? p.colorDim : 'transparent', color: active ? p.color : 'var(--muted)' }}>
+                    <span style={{ width:5, height:5, borderRadius:'50%', background: active ? p.color : 'var(--muted)' }} />
+                    {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Dropdowns */}
+          {[
+            ['Category', filterCat, (v) => { setFilterCat(v); setFilterSubcat(''); setPage(1); }, Object.keys(CATEGORIES)],
+            ['Sub-category', filterSubcat, (v) => { setFilterSubcat(v); setPage(1); }, subcats],
+            ['Payment', filterPayment, (v) => { setFilterPayment(v); setPage(1); }, PAYMENT_METHODS],
+            ['Status', filterStatus, (v) => { setFilterStatus(v); setPage(1); }, STATUSES],
+            ['Source', filterSource, (v) => { setFilterSource(v); setPage(1); }, SOURCES],
+          ].map(([label, val, setter, opts]) => (
+            <div key={label} style={{ position:'relative' }}>
+              <select value={val} onChange={e => setter(e.target.value)}
+                style={{ ...selStyle, border:'1px solid ' + (val ? 'var(--accent)' : 'var(--border)'), color: val ? 'var(--text)' : 'var(--muted)', minWidth:100 }}>
+                <option value="">{label}</option>
+                {opts.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
+
+          <button onClick={resetFilters} style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 9px', borderRadius:6, background:'transparent', border:'1px solid var(--border)', color:'var(--muted)', fontSize:11, cursor:'pointer' }}>
+            <Icon name="x" size={11} /> Reset
+          </button>
+        </div>
+      </div>
+
+      {/* Summary bar */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, flexShrink:0 }}>
+        {[
+          ['Total Revenue', fmtK(totalRev)],
+          ['Transactions', fmtNum(tableData.length)],
+          ['Refund Rate', tableData.length ? ((refundedCount / tableData.length) * 100).toFixed(1) + '%' : '—'],
+          ['Success Rate', successRate + '%'],
+        ].map(([label, value]) => (
+          <div key={label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize:10, color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</span>
+            <span style={{ fontFamily:'DM Mono', fontSize:13, fontWeight:500 }}>{value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div style={{ flex:1, overflow:'hidden', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, display:'flex', flexDirection:'column' }}>
+        <div style={{ flex:1, overflow:'auto' }}>
+          {paginated.length === 0 ? (
+            <EmptyState message="No transactions found · try adjusting filters" />
+          ) : (
+            <table style={{ width:'100%', borderCollapse:'collapse', tableLayout:'fixed' }}>
+              <thead>
+                <tr>
+                  <Th col="id" label="TXN ID" style={{ width:120 }} />
+                  <Th col="date" label="Date & Time" style={{ width:130 }} />
+                  <Th col="park" label="Park" style={{ width:140 }} />
+                  <Th label="City / State" style={{ width:120 }} />
+                  <Th col="category" label="Category" style={{ width:90 }} />
+                  <Th label="Sub-category" style={{ width:115 }} />
+                  <Th label="Payment" style={{ width:110 }} />
+                  <Th label="Source" style={{ width:95 }} />
+                  <Th col="amount" label="Amount" style={{ width:90, textAlign:'right' }} />
+                  <Th col="status" label="Status" style={{ width:95 }} />
+                  <Th label="Actions" style={{ width:72 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map((txn) => (
+                  <tr key={txn.id}
+                    style={{ borderBottom:'1px solid var(--border)', transition:'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding:'7px 10px' }}><span style={{ fontFamily:'DM Mono', fontSize:11, color:'var(--accent)' }}>{txn.id}</span></td>
+                    <td style={{ padding:'7px 10px' }}><span style={{ fontFamily:'DM Mono', fontSize:11, color:'var(--muted)' }}>{txn.date.toLocaleDateString('en-IN', { month:'short', day:'numeric' })} {txn.date.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</span></td>
+                    <td style={{ padding:'7px 10px', overflow:'hidden' }}>
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:5, background:txn.park.colorDim, border:'1px solid ' + txn.park.color + '55', borderRadius:5, padding:'2px 8px 2px 6px', maxWidth:'100%' }}>
+                        <span style={{ width:7, height:7, borderRadius:'50%', background:txn.park.color, flexShrink:0 }} />
+                        <span style={{ fontSize:11, fontWeight:600, color:txn.park.color, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{txn.park.name}</span>
+                      </span>
+                    </td>
+                    <td style={{ padding:'7px 10px' }}><span style={{ fontSize:11, color:'var(--muted)' }}>{txn.park.city}, {txn.park.state}</span></td>
+                    <td style={{ padding:'7px 10px' }}><span style={{ fontSize:11 }}>{txn.category}</span></td>
+                    <td style={{ padding:'7px 10px' }}><span style={{ fontSize:11, color:'var(--muted)', display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{txn.subcategory}</span></td>
+                    <td style={{ padding:'7px 10px' }}><span style={{ fontSize:11, color:'var(--muted)' }}>{txn.paymentMethod}</span></td>
+                    <td style={{ padding:'7px 10px' }}><span style={{ fontSize:11, color:'var(--muted)' }}>{txn.source}</span></td>
+                    <td style={{ padding:'7px 10px', textAlign:'right' }}><span style={{ fontFamily:'DM Mono', fontSize:12, fontWeight:500 }}>{fmt(txn.amount)}</span></td>
+                    <td style={{ padding:'7px 10px' }}><StatusBadge status={txn.status} /></td>
+                    <td style={{ padding:'7px 10px' }}>
+                      <div style={{ display:'flex', gap:3 }}>
+                        <button onClick={() => setDetail(txn)} title="View Details"
+                          style={{ width:25, height:25, borderRadius:5, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)'; }}>
+                          <Icon name="eye" size={12} />
+                        </button>
+                        {txn.status === 'Completed' && (
+                          <button title="Issue Refund"
+                            style={{ width:25, height:25, borderRadius:5, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#a78bfa'; e.currentTarget.style.color = '#a78bfa'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)'; }}>
+                            <Icon name="refund" size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Pagination */}
+        <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <span style={{ fontSize:12, color:'var(--muted)' }}>
+            {tableData.length === 0 ? '0 results' : ((page-1)*ITEMS_PER_PAGE+1) + '–' + Math.min(page*ITEMS_PER_PAGE, tableData.length) + ' of ' + fmtNum(tableData.length) + ' transactions'}
+          </span>
+          <div style={{ display:'flex', gap:3, alignItems:'center' }}>
+            <button disabled={page === 1} onClick={() => setPage(p => p-1)} style={{ width:26, height:26, borderRadius:5, border:'1px solid var(--border)', background:'transparent', cursor: page===1 ? 'not-allowed' : 'pointer', color: page===1 ? 'var(--border)' : 'var(--muted)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Icon name="chevronLeft" size={13} />
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+              let p;
+              if (totalPages <= 5) p = i + 1;
+              else if (page <= 3) p = i + 1;
+              else if (page >= totalPages - 2) p = totalPages - 4 + i;
+              else p = page - 2 + i;
+              return (
+                <button key={p} onClick={() => setPage(p)} style={{ width:26, height:26, borderRadius:5, border:'1px solid ' + (page===p ? 'var(--accent)' : 'var(--border)'), background: page===p ? 'var(--accent-dim)' : 'transparent', color: page===p ? 'var(--accent)' : 'var(--muted)', fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'DM Mono' }}>{p}</button>
+              );
+            })}
+            <button disabled={page === totalPages} onClick={() => setPage(p => p+1)} style={{ width:26, height:26, borderRadius:5, border:'1px solid var(--border)', background:'transparent', cursor: page===totalPages ? 'not-allowed' : 'pointer', color: page===totalPages ? 'var(--border)' : 'var(--muted)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Icon name="chevronRight" size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <DetailDrawer txn={detail} onClose={() => setDetail(null)} />
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// APP ROOT
+// ═══════════════════════════════════════════════════════════════════
+const App = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULS);
+  const [page, setPage] = useState('dashboard');
+  const [dateRangeIdx, setDateRangeIdx] = useState(2); // default: Last 90 days
+
+  // Hierarchical filter state
+  const [selState, setSelState] = useState('');
+  const [selCity, setSelCity] = useState('');
+  const [selParkIds, setSelParkIds] = useState([]);
+
+  // State change → reset city + park
+  const handleStateChange = useCallback((s) => {
+    setSelState(s);
+    setSelCity('');
+    setSelParkIds([]);
+  }, []);
+
+  // City change → reset park
+  const handleCityChange = useCallback((c) => {
+    setSelCity(c);
+    setSelParkIds([]);
+  }, []);
+
+  // Park toggle
+  const handleTogglePark = useCallback((id) => {
+    if (id === null) { setSelParkIds([]); return; }
+    setSelParkIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }, []);
+
+  // Derive which parks are available and active
+  const availableParks = useMemo(() => getParksForFilter(selState, selCity), [selState, selCity]);
+  const activeParks = useMemo(() => {
+    if (selParkIds.length === 0) return availableParks;
+    return availableParks.filter(p => selParkIds.includes(p.id));
+  }, [availableParks, selParkIds]);
+
+  // Filter transactions based on hierarchy
+  const filteredTxns = useMemo(() => {
+    const parkIds = activeParks.map(p => p.id);
+    if (parkIds.length === 0 && availableParks.length === 0) return [];
+    return ALL_TRANSACTIONS.filter(t => parkIds.includes(t.park.id));
+  }, [activeParks]);
+
+  // Apply accent from tweaks
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent', tweaks.accentColor || '#3b82f6');
+  }, [tweaks.accentColor]);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      {/* Top bar */}
+      <div style={{ height:48, background:'oklch(10% 0.015 265)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', padding:'0 16px', gap:14, flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+          <div style={{ width:26, height:26, borderRadius:6, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <span style={{ fontFamily:'DM Mono', fontWeight:700, fontSize:10, color:'white', letterSpacing:'-0.05em' }}>ZT</span>
+          </div>
+          <span style={{ fontWeight:700, fontSize:14, letterSpacing:'-0.02em' }}>ZTech</span>
+          <span style={{ fontSize:12, color:'var(--muted)' }}>Parks CRM</span>
+        </div>
+        <div style={{ width:1, height:18, background:'var(--border)' }} />
+        <div style={{ display:'flex', gap:2 }}>
+          {[['dashboard','Dashboard','dashboard'],['transactions','Transactions','transactions']].map(([id, label, icon]) => (
+            <button key={id} onClick={() => setPage(id)}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:6, border:'none', background: page===id ? 'var(--surface2)' : 'transparent', color: page===id ? 'var(--text)' : 'var(--muted)', fontSize:13, fontWeight: page===id ? 600 : 400, cursor:'pointer', transition:'all 0.15s' }}
+              onMouseEnter={e => { if (page!==id) e.currentTarget.style.background='var(--surface)'; }}
+              onMouseLeave={e => { if (page!==id) e.currentTarget.style.background='transparent'; }}
+            >
+              <Icon name={icon} size={13} color="currentColor" />{label}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex:1 }} />
+        <span style={{ fontSize:11, color:'var(--muted)', fontFamily:'DM Mono' }}>ops@ztech.io</span>
+        <div style={{ width:26, height:26, borderRadius:'50%', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:600, color:'var(--muted)' }}>OP</div>
+      </div>
+
+      {/* Context bar (hierarchical filters) */}
+      <ContextBar
+        selState={selState} selCity={selCity} selParkIds={selParkIds}
+        onStateChange={handleStateChange} onCityChange={handleCityChange} onTogglePark={handleTogglePark}
+        dateRangeLabel={DATE_RANGES[dateRangeIdx].label}
+      />
+
+      {/* Main content */}
+      <div style={{ flex:1, overflow:'hidden', display:'flex' }}>
+        {page === 'dashboard'
+          ? <Dashboard filteredTxns={filteredTxns} filteredParks={activeParks} tweaks={tweaks} dateRangeIdx={dateRangeIdx} onDateRangeChange={setDateRangeIdx} />
+          : <Transactions filteredTxns={filteredTxns} filteredParks={activeParks} dateRangeIdx={dateRangeIdx} onDateRangeChange={setDateRangeIdx} />
+        }
+      </div>
+
+      {/* Tweaks panel */}
+      <TweaksPanel>
+        <TweakSection label="Accent Color" />
+        <TweakColor label="Color" value={tweaks.accentColor} onChange={v => setTweak('accentColor', v)} />
+        <TweakSection label="Chart Window" />
+        <TweakSlider label="Days shown" value={tweaks.chartDays} min={7} max={30} step={1} onChange={v => setTweak('chartDays', v)} />
+      </TweaksPanel>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import { api } from '../lib/api';
 import Dashboard from '../components/Dashboard';
+import { dashboardFallback } from './dashboardFallback';
 
 export default async function Home() {
   // Fetch all data in parallel on the server
@@ -16,19 +17,19 @@ export default async function Home() {
       api.revenueTrend(),
     ]);
 
-  const getData = (result) => result.status === 'fulfilled' ? result.value : null;
+  const getData = (result, key) => result.status === 'fulfilled' ? result.value : dashboardFallback[key];
 
   return (
     <Dashboard
-      kpis={getData(kpis)}
-      demographics={getData(demographics)}
-      revenueSplits={getData(revenueSplits)}
-      hourly={getData(hourly)}
-      heatmap={getData(heatmap)}
-      weekendWeekday={getData(weekendWeekday)}
-      comparative={getData(comparative)}
-      topParks={getData(topParks)}
-      revenueTrend={getData(revenueTrend)}
+      kpis={getData(kpis, 'kpis')}
+      demographics={getData(demographics, 'demographics')}
+      revenueSplits={getData(revenueSplits, 'revenueSplits')}
+      hourly={getData(hourly, 'hourly')}
+      heatmap={getData(heatmap, 'heatmap')}
+      weekendWeekday={getData(weekendWeekday, 'weekendWeekday')}
+      comparative={getData(comparative, 'comparative')}
+      topParks={getData(topParks, 'topParks')}
+      revenueTrend={getData(revenueTrend, 'revenueTrend')}
     />
   );
 }

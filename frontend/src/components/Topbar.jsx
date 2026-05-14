@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import Icon from './Icon';
 import { num } from '../lib/format';
 
-export default function Topbar({ initialLiveCount = 1284 }) {
+export default function Topbar({ initialLiveCount = 1284, current = 'Dashboard', icon = 'grid' }) {
   const [liveCount, setLiveCount] = useState(initialLiveCount);
 
   useEffect(() => {
@@ -16,10 +16,10 @@ export default function Topbar({ initialLiveCount = 1284 }) {
   return (
     <div className="topbar">
       <div className="crumbs">
-        <Icon name="grid" size={13} color="var(--ink-3)"/>
+        <Icon name={icon} size={13} color="var(--ink-3)"/>
         <span>Operations</span>
         <Icon name="chevronR" size={11} color="var(--ink-5)"/>
-        <strong>Dashboard</strong>
+        <strong>{current}</strong>
       </div>
       <span className="tag">FY 2025–26 · Q1</span>
 

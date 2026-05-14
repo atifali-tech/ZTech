@@ -17,4 +17,8 @@ export const api = {
   topParks:      () => get('/api/dashboard/top-parks'),
   revenueTrend:  () => get('/api/dashboard/revenue-trend'),
   parks:         () => get('/api/dashboard/parks'),
+  tickets: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return get(`/api/tickets?${qs}`);
+  },
 };

@@ -1,20 +1,20 @@
 'use client';
+import Link from 'next/link';
 import Icon from './Icon';
 
 const NAV = [
-  { id: 'dash', label: 'Dashboard', icon: 'grid',   active: true },
-  { id: 'tix',  label: 'Tickets',   icon: 'ticket', active: false },
+  { id: 'dashboard', label: 'Dashboard', icon: 'grid',   href: '/' },
+  { id: 'tickets',   label: 'Tickets',   icon: 'ticket', href: '/tickets' },
+  { id: 'analytics', label: 'Analytics', icon: 'chart',  href: '/analytics' },
 ];
 const SOON = [
-  { id: 'ff',   label: 'Footfall Analytics', icon: 'users'    },
-  { id: 'rev',  label: 'Revenue Analytics',  icon: 'chart'    },
   { id: 'act',  label: 'Activities',         icon: 'activity' },
   { id: 'park', label: 'Parking',            icon: 'car'      },
   { id: 'fnb',  label: 'F&B',                icon: 'coffee'   },
   { id: 'rep',  label: 'Reports & Exports',  icon: 'file'     },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ active = 'dashboard' }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -28,10 +28,10 @@ export default function Sidebar() {
       <div className="sidebar-section">Live</div>
       <div className="sidebar-nav">
         {NAV.map(it => (
-          <div key={it.id} className={'nav-item' + (it.active ? ' active' : '')}>
+          <Link key={it.id} href={it.href} className={'nav-item' + (active === it.id ? ' active' : '')}>
             <Icon name={it.icon} size={15}/>
             <span>{it.label}</span>
-          </div>
+          </Link>
         ))}
       </div>
 

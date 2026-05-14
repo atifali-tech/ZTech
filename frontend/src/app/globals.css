@@ -75,6 +75,7 @@ input, select { font-family: inherit; font-size: inherit; }
 .nav-item {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 5px;
   color: var(--sidebar-ink); font-size: 13px; font-weight: 500; cursor: pointer; user-select: none; position: relative;
+  text-decoration: none;
 }
 .nav-item.active { background: rgba(14,124,102,0.16); color: #fff; }
 .nav-item.active::before { content: ""; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 2px; background: var(--teal); border-radius: 2px; }
@@ -124,14 +125,19 @@ input, select { font-family: inherit; font-size: inherit; }
   padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
 }
 .filter { position: relative; flex: 1 1 0; min-width: 140px; }
+.filter-field { position: relative; flex: 1 1 0; min-width: 140px; }
 .filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-4); display: block; margin-bottom: 3px; font-weight: 600; }
-.filter-select {
+.filter-select,
+.filter-input {
   width: 100%; appearance: none; background: var(--surface); border: 1px solid var(--border);
   border-radius: 5px; padding: 7px 28px 7px 10px; font-size: 13px; color: var(--ink); font-weight: 500;
+}
+.filter-select {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235B6273' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
   background-repeat: no-repeat; background-position: right 10px center;
 }
-.filter-select:focus { outline: 2px solid var(--teal-100); border-color: var(--teal); }
+.filter-select:focus,
+.filter-input:focus { outline: 2px solid var(--teal-100); border-color: var(--teal); }
 .compare-toggle {
   display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px;
   border: 1px solid var(--border); border-radius: 5px; background: var(--surface);
@@ -156,6 +162,7 @@ input, select { font-family: inherit; font-size: inherit; }
 .btn-primary:hover { background: var(--teal-700); }
 .btn-ghost { border-color: transparent; color: var(--ink-3); }
 .btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn-sm { height: 28px; padding: 0 9px; font-size: 11.5px; }
 
 /* Section */
 .sec { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; overflow: hidden; min-width: 0; height: 100%; box-sizing: border-box; }
@@ -176,6 +183,57 @@ input, select { font-family: inherit; font-size: inherit; }
 .toggle-group button { border: 0; background: var(--surface); padding: 5px 10px; font-size: 11.5px; color: var(--ink-3); font-weight: 500; border-right: 1px solid var(--border); }
 .toggle-group button:last-child { border-right: 0; }
 .toggle-group button.on { background: var(--ink); color: #fff; }
+.summary-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+}
+.summary-bar strong { color: var(--ink); }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+.data-table th {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-4);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 10px 12px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.data-table td {
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-2);
+  padding: 11px 12px;
+  white-space: nowrap;
+}
+.data-table tbody tr:hover { background: var(--surface-2); }
+.data-table .sortable { cursor: pointer; user-select: none; }
+.pager { display: flex; align-items: center; gap: 4px; }
+.page-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.page-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+.page-btn.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+.page-btn:disabled { cursor: not-allowed; opacity: 0.45; }
 
 /* Grid */
 .grid-12 { display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; min-width: 0; }

@@ -32,6 +32,7 @@ app.use(express.json());
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/tickets', require('./routes/tickets'));
 
 // Health check
 app.get('/api/health', async (req, res) => {

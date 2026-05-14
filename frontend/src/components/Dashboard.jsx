@@ -55,7 +55,7 @@ export default function Dashboard({ kpis, demographics, revenueSplits, hourly, h
           </div>
 
           <div style={{ opacity: loading ? 0.55 : 1, transition: 'opacity .25s' }}>
-            <KpiRow data={kpis}/>
+            <KpiRow data={kpis} revenueSplits={revenueSplits}/>
           </div>
 
           <DemographicsSection data={demographics}/>
