@@ -23,7 +23,7 @@ function colorFor(v, maxV) {
   return 'rgb(10,94,77)';
 }
 
-export default function Heatmap({ data }) {
+export default function Heatmap({ data, title = 'Peak Hour Heatmap', headerExtra = null }) {
   const [hover, setHover] = useState(null);
 
   if (!data) return null;
@@ -36,9 +36,9 @@ export default function Heatmap({ data }) {
 
   return (
     <Section
-      title="Peak Hour Heatmap"
+      title={title}
       sub="7-day rolling · footfall density"
-      actions={<span className="tag teal">Sat 6PM hottest</span>}
+      actions={<>{headerExtra}<span className="tag teal">Sat 6PM hottest</span></>}
     >
       <div style={{ position: 'relative' }}>
         <div className="heatmap" style={{ gridTemplateColumns: '54px repeat(17, 1fr)' }}>

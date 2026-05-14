@@ -7,8 +7,8 @@ import { inr, num } from '../lib/format';
 const METRICS    = ['Revenue', 'Tickets', 'Footfall', 'Activities', 'F&B'];
 const TREND_DELTAS = [4.8, -1.2, 6.4, 2.1, -3.6];
 
-function TopParksPanel({ topParks }) {
-  const [tab, setTab] = useState('Revenue');
+function TopParksPanel({ topParks, initialTab = 'Revenue', headerExtra = null }) {
+  const [tab, setTab] = useState(initialTab);
   const list = topParks[tab] || [];
   const max  = Math.max(...list.map(x => x.value));
   const fmt  = ['Revenue','Activities','F&B'].includes(tab) ? inr : num;
@@ -18,11 +18,14 @@ function TopParksPanel({ topParks }) {
       title="Top Performing Parks"
       sub={`top 5 by ${tab.toLowerCase()}`}
       actions={
-        <div className="tabs">
-          {METRICS.map(m => (
-            <button key={m} className={tab === m ? 'on' : ''} onClick={() => setTab(m)}>{m}</button>
-          ))}
-        </div>
+        <>
+          <div className="tabs">
+            {METRICS.map(m => (
+              <button key={m} className={tab === m ? 'on' : ''} onClick={() => setTab(m)}>{m}</button>
+            ))}
+          </div>
+          {headerExtra}
+        </>
       }
     >
       <div>
@@ -45,7 +48,7 @@ function TopParksPanel({ topParks }) {
   );
 }
 
-export default function TopParksRow({ topParks }) {
+export default function TopParksRow({ topParks, initialTab = 'Revenue', headerExtra = null }) {
   if (!topParks) return null;
-  return <TopParksPanel topParks={topParks}/>;
+  return <TopParksPanel topParks={topParks} initialTab={initialTab} headerExtra={headerExtra}/>;
 }

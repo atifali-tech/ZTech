@@ -15,6 +15,12 @@ const PARKS_7 = [
   { name: 'World Park',    color: '#34C4C4', visPct:  7, revPct:  6 },
 ];
 
+const SRC_CHANNELS = [
+  { name: 'Counter', color: '#1D9E75', pct: 54 },
+  { name: 'Web',     color: '#378ADD', pct: 32 },
+  { name: 'App',     color: '#7F77DD', pct: 14 },
+];
+
 // Static until API supports period-level revenue — mult approximates daily→weekly→monthly
 const REV_PERIODS = {
   Today: { mult: 1,    delta: -7.4, label: 'vs yesterday'  },
@@ -34,6 +40,7 @@ function KpiCard({ label, icon, value, delta, deltaLabel = 'vs last 7 days avg',
         {delta != null && <Delta value={delta}/>}
         <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{deltaLabel}</span>
       </div>
+      {extra && <div style={{ margin: '8px 0 4px', borderTop: '1px solid var(--border)' }}/>}
       {extra}
     </div>
   );
@@ -47,13 +54,18 @@ export default function KpiRow({ data }) {
   const revCfg    = REV_PERIODS[revPeriod];
   const revValue  = Math.round(data.totalRevenue * revCfg.mult);
 
-  // Card 1 extra — 7-park visitor % in tiny colored text
+  // Card 1 extra — 7-park visitor % pill rows
   const visBreakdown = (
-    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: '2px 8px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {PARKS_7.map(p => (
-        <span key={p.name} style={{ fontSize: 10, color: p.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
-          {p.name.split(' ')[0]} {p.visPct}%
-        </span>
+        <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6,
+          padding: '3px 6px', borderRadius: 4, background: '#F5F6F8' }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.color,
+            flexShrink: 0, display: 'inline-block' }}/>
+          <span style={{ fontSize: 10.5, color: 'var(--ink-2)', flex: 1 }}>{p.name}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)',
+            fontFamily: "'JetBrains Mono', monospace" }}>{p.visPct}%</span>
+        </div>
       ))}
     </div>
   );
@@ -75,22 +87,34 @@ export default function KpiRow({ data }) {
           </button>
         ))}
       </div>
-      <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: '2px 8px' }}>
+      <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {PARKS_7.map(p => (
-          <span key={p.name} style={{ fontSize: 10, color: p.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
-            {p.name.split(' ')[0]} {inr(Math.round(revValue * p.revPct / 100))}
-          </span>
+          <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6,
+            padding: '3px 6px', borderRadius: 4, background: '#F5F6F8' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.color,
+              flexShrink: 0, display: 'inline-block' }}/>
+            <span style={{ fontSize: 10.5, color: 'var(--ink-2)', flex: 1 }}>{p.name}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)',
+              fontFamily: "'JetBrains Mono', monospace" }}>{inr(Math.round(revValue * p.revPct / 100))}</span>
+          </div>
         ))}
       </div>
     </>
   );
 
-  // Card 3 extra — source breakdown tiny text
+  // Card 3 extra — source breakdown pill rows
   const srcBreakdown = (
-    <div style={{ marginTop: 6, fontSize: 10, color: 'var(--ink-4)', display: 'flex', flexWrap: 'wrap', gap: '0 10px' }}>
-      <span>Counter <span className="mono" style={{ color: 'var(--ink-2)', fontWeight: 600 }}>54%</span></span>
-      <span>Web <span className="mono" style={{ color: 'var(--ink-2)', fontWeight: 600 }}>32%</span></span>
-      <span>App <span className="mono" style={{ color: 'var(--ink-2)', fontWeight: 600 }}>14%</span></span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {SRC_CHANNELS.map(s => (
+        <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6,
+          padding: '3px 6px', borderRadius: 4, background: '#F5F6F8' }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.color,
+            flexShrink: 0, display: 'inline-block' }}/>
+          <span style={{ fontSize: 10.5, color: 'var(--ink-2)', flex: 1 }}>{s.name}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)',
+            fontFamily: "'JetBrains Mono', monospace" }}>{s.pct}%</span>
+        </div>
+      ))}
     </div>
   );
 

@@ -11,7 +11,7 @@ const STATE_CITIES = {
   'Odisha':        ['Bhubaneswar'],
 };
 
-export default function FilterBar({ filters, setFilters, onApply, onExport }) {
+export default function FilterBar({ filters, setFilters, onApply, onExport, showCity = true }) {
   const [exportOpen, setExportOpen] = useState(false);
   const cities = filters.state === 'All States'
     ? ['All Cities', 'Noida', 'Lucknow', 'New Delhi', 'Ahmedabad', 'Bhubaneswar']
@@ -41,13 +41,15 @@ export default function FilterBar({ filters, setFilters, onApply, onExport }) {
           {STATES.map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
-      <div className="filter">
-        <label className="filter-label">City</label>
-        <select className="filter-select" value={filters.city}
-          onChange={e => setFilters(f => ({ ...f, city: e.target.value }))}>
-          {cities.map(c => <option key={c}>{c}</option>)}
-        </select>
-      </div>
+      {showCity && (
+        <div className="filter">
+          <label className="filter-label">City</label>
+          <select className="filter-select" value={filters.city}
+            onChange={e => setFilters(f => ({ ...f, city: e.target.value }))}>
+            {cities.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+      )}
       <div className="filter">
         <label className="filter-label">Date Range</label>
         <select className="filter-select" value={filters.range}
