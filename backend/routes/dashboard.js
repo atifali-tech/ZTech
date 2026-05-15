@@ -94,12 +94,9 @@ router.get('/kpis', async (req, res) => {
     // Aggregate totals for the selected period
     const today = await pool.query(`
       SELECT
-        SUM(total_visitors)    AS total_visitors,
-        SUM(total_revenue)     AS total_revenue,
-        SUM(total_tickets)     AS total_tickets,
-        MAX(peak_hour)         AS peak_hour,
-        MAX(peak_footfall)     AS peak_footfall,
-        MAX(peak_hour_revenue) AS peak_hour_revenue
+        SUM(total_visitors) AS total_visitors,
+        SUM(total_revenue)  AS total_revenue,
+        SUM(total_tickets)  AS total_tickets
       FROM daily_stats
       ${WHERE}
     `, dailyParams);
@@ -126,7 +123,13 @@ router.get('/kpis', async (req, res) => {
     const ticketWhere = `DATE(t.created_at) > ${anchor} - INTERVAL '7 days' AND DATE(t.created_at) <= ${anchor}${ticketParkClauses.length ? ` AND ${ticketParkClauses.join(' AND ')}` : ''}`;
     const todayWhere  = `DATE(t.created_at) = ${anchor}${ticketParkClauses.length ? ` AND ${ticketParkClauses.join(' AND ')}` : ''}`;
 
-    const [peakRows, todayCount, weekResult, monthResult] = await Promise.all([
+    const peakWhere = [
+      dateSQL(range, date, 'DATE(t.created_at)'),
+      'EXTRACT(hour FROM t.created_at) BETWEEN 10 AND 18',
+      ...ticketParkClauses,
+    ].join(' AND ');
+
+    const [peakRows, todayCount, weekResult, monthResult, peakResult] = await Promise.all([
       pool.query(`
         SELECT day, MAX(cnt) AS peak
         FROM (
@@ -156,10 +159,22 @@ router.get('/kpis', async (req, res) => {
         WHERE stat_date > ${anchor} - INTERVAL '30 days' AND stat_date <= ${anchor}
           ${dailyParkClauses.length ? `AND ${dailyParkClauses.join(' AND ')}` : ''}
       `, dailyParams),
+      pool.query(`
+        SELECT
+          EXTRACT(hour FROM t.created_at)::int      AS peak_hour,
+          COUNT(*)::int                              AS peak_count,
+          COALESCE(SUM(t.total_amount), 0)::numeric AS peak_revenue
+        FROM tickets t
+        WHERE ${peakWhere}
+        GROUP BY 1
+        ORDER BY 2 DESC
+        LIMIT 1
+      `, ticketParams),
     ]);
 
     const t    = today.rows[0];
     const rows = spark.rows;
+    const peak = peakResult.rows[0] || {};
 
     // Previous-period comparison — only when compare=true
     let deltaVisitors = null, deltaRevenue = null, deltaTickets = null, deltaLabel = null;
@@ -187,9 +202,9 @@ router.get('/kpis', async (req, res) => {
       totalVisitors:    parseInt(t.total_visitors)      || 0,
       totalRevenue:     parseFloat(t.total_revenue)     || 0,
       totalTickets:     parseInt(t.total_tickets)       || 0,
-      peakHour:         parseInt(t.peak_hour)           || 18,
-      peakFootfall:     parseInt(t.peak_footfall)       || 0,
-      peakHourRevenue:  parseFloat(t.peak_hour_revenue) || 0,
+      peakHour:    parseInt(peak.peak_hour)        || 0,
+      peakCount:   parseInt(peak.peak_count)       || 0,
+      peakRevenue: parseFloat(peak.peak_revenue)   || 0,
       sparkVisitors:    rows.map(r => parseInt(r.visitors)),
       sparkRevenue:     rows.map(r => parseFloat(r.revenue)),
       sparkTickets:     rows.map(r => parseInt(r.tickets)),

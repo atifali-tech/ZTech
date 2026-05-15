@@ -5,7 +5,7 @@ import { num, inr, inrFull, formatHour } from '../lib/format';
 
 function KpiCard({ label, icon, value, delta, deltaLabel, extra }) {
   const trend = (delta != null || deltaLabel) ? (
-    <div className="kpi-row" style={{ marginTop: 0, whiteSpace: 'nowrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
       {delta != null && <Delta value={delta}/>}
       {deltaLabel && <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{deltaLabel}</span>}
     </div>
@@ -13,14 +13,12 @@ function KpiCard({ label, icon, value, delta, deltaLabel, extra }) {
 
   return (
     <div className="sec kpi">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
-          {icon && <Icon name={icon} size={13} color="var(--ink-4)"/>}
-          {label}
-        </div>
-        <div style={{ marginLeft: 'auto' }}>{trend}</div>
+      <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
+        {icon && <Icon name={icon} size={15} color="var(--ink-4)"/>}
+        {label}
       </div>
       <div className="kpi-val">{value}</div>
+      {trend}
       {extra && <div style={{ margin: '8px 0 4px', borderTop: '1px solid var(--border)' }}/>}
       {extra}
     </div>
@@ -61,9 +59,9 @@ export default function KpiRow({ data, revenueSplits = {}, topParks = {} }) {
           delta={delta(data.deltaVisitors)} deltaLabel={cmpLabel}
           extra={
             <BreakdownList
-              rows={(topParks.Footfall || []).slice(0, 5).map(p => ({ name: p.name, value: p.value, color: p.color }))}
+              rows={(topParks.Footfall || []).filter(p => p.value > 0).slice(0, 5).map(p => ({ name: p.name, value: p.value, color: p.color }))}
               formatValue={num}
-              emptyText="Visitor breakdown unavailable for this filter."
+              emptyText="No data for this period"
             />
           }
         />
@@ -75,9 +73,9 @@ export default function KpiRow({ data, revenueSplits = {}, topParks = {} }) {
           delta={delta(data.deltaRevenue)} deltaLabel={cmpLabel}
           extra={
             <BreakdownList
-              rows={(revenueSplits?.byCategory || []).slice(0, 5)}
+              rows={(revenueSplits?.byCategory || []).filter(r => r.value > 0).slice(0, 5)}
               formatValue={inr}
-              emptyText="Revenue category breakdown unavailable."
+              emptyText="No data for this period"
             />
           }
         />
@@ -89,9 +87,9 @@ export default function KpiRow({ data, revenueSplits = {}, topParks = {} }) {
           delta={delta(data.deltaTickets)} deltaLabel={cmpLabel}
           extra={
             <BreakdownList
-              rows={(revenueSplits?.bySource || []).slice(0, 5)}
+              rows={(revenueSplits?.bySource || []).filter(r => r.value > 0).slice(0, 5)}
               formatValue={num}
-              emptyText="Source breakdown unavailable."
+              emptyText="No data for this period"
             />
           }
         />
@@ -99,38 +97,36 @@ export default function KpiRow({ data, revenueSplits = {}, topParks = {} }) {
       <div className="col-3">
         <div className="sec kpi" style={{ background: 'linear-gradient(180deg, #FFFFFF 0%, #F6FBF9 100%)' }}>
           <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
-            <Icon name="clock" size={13} color="var(--ink-4)"/> Peak Hour
+            <Icon name="clock" size={15} color="var(--ink-4)"/> Busiest Hour
           </div>
-          <div className="row" style={{ alignItems: 'flex-end', marginTop: 4, gap: 10 }}>
-            <div className="kpi-val mono" style={{ fontSize: 30 }}>
-              {peakLabel.replace('AM','').replace('PM','')}
-              <span className="unit">{peakLabel.includes('PM') ? 'PM' : 'AM'}</span>
-            </div>
-            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, fontSize: 18, color: 'var(--teal)', lineHeight: 1 }}>
-                {num(data.peakFootfall)}
+          {data.peakCount > 0 ? (
+            <>
+              <div className="kpi-val mono" style={{ fontSize: 30, marginTop: 6 }}>
+                {peakLabel.replace('AM','').replace('PM','')}
+                <span className="unit">{peakLabel.includes('PM') ? 'PM' : 'AM'}</span>
               </div>
-              <div style={{ fontSize: 10, color: 'var(--ink-4)', letterSpacing: '.04em', textTransform: 'uppercase', fontWeight: 600, marginTop: 3 }}>
-                visitors
+              <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: 'var(--teal)', fontFamily: "'JetBrains Mono', monospace" }}>
+                {num(data.peakCount)} tickets
               </div>
-            </div>
-          </div>
-          <div className="kpi-row" style={{ flexWrap: 'wrap' }}>
-            <span className="tag teal">Today&apos;s Peak</span>
-            <span style={{ color: 'var(--ink-4)', whiteSpace: 'nowrap' }}>{inr(data.peakHourRevenue)} this hour</span>
-          </div>
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'flex-end', gap: 2, height: 20 }}>
-            {(data.sparkPeak || []).map((v, i, arr) => (
-              <div key={i} style={{
-                flex: 1, height: (v / Math.max(...arr, 1)) * 100 + '%',
-                background: i === arr.length - 1 ? 'var(--teal)' : 'var(--teal-100)',
-                borderRadius: 1.5,
-              }}/>
-            ))}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--ink-4)', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-            <span>Sat</span><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Today</span>
-          </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>
+                {inr(data.peakRevenue)} this hour
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', alignItems: 'flex-end', gap: 2, height: 20 }}>
+                {(data.sparkPeak || []).map((v, i, arr) => (
+                  <div key={i} style={{
+                    flex: 1, height: (v / Math.max(...arr, 1)) * 100 + '%',
+                    background: i === arr.length - 1 ? 'var(--teal)' : 'var(--teal-100)',
+                    borderRadius: 1.5,
+                  }}/>
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--ink-4)', marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+                <span>Sat</span><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Today</span>
+              </div>
+            </>
+          ) : (
+            <div style={{ color: 'var(--ink-4)', fontSize: 12, marginTop: 8 }}>No data for this period</div>
+          )}
         </div>
       </div>
     </div>

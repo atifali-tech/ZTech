@@ -10,6 +10,18 @@ export default function HourlyChart({ data }) {
   if (!data) return null;
 
   const { hours, footfall, revenue } = data;
+
+  if (!hours || hours.length < 2) {
+    return (
+      <Section title="Hourly Footfall × Revenue" padded={false}>
+        <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--ink-4)', fontSize: 12 }}>
+          No data for this period
+        </div>
+      </Section>
+    );
+  }
+
   const n      = hours.length;
   const w      = Math.max(size.w, 600);
   const h      = 280;
@@ -17,8 +29,8 @@ export default function HourlyChart({ data }) {
   const innerW = w - pad.l - pad.r;
   const innerH = h - pad.t - pad.b;
   const xStep  = innerW / (n - 1);
-  const maxFF  = Math.max(...footfall);
-  const maxRev = Math.max(...revenue);
+  const maxFF  = Math.max(...footfall, 1);
+  const maxRev = Math.max(...revenue,  1);
   const yFF    = v => pad.t + innerH - (v / maxFF)  * innerH;
   const yRev   = v => pad.t + innerH - (v / maxRev) * innerH;
   const xAt    = i => pad.l + i * xStep;

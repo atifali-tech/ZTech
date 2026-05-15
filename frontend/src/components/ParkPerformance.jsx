@@ -6,7 +6,14 @@ export default function ParkPerformance({ topParks }) {
   const [ref, { w }] = useResize();
   const revenueRows = topParks?.Revenue || [];
   const footfallRows = topParks?.Footfall || [];
-  if (!revenueRows.length) return null;
+  if (!revenueRows.length) return (
+    <div className="sec">
+      <div className="sec-head"><div className="sec-title">Park Performance</div></div>
+      <div className="sec-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+        <span style={{ color: 'var(--ink-4)', fontSize: 12 }}>No data for this period</span>
+      </div>
+    </div>
+  );
 
   const width  = w || 400;
   const height = 220;

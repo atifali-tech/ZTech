@@ -27,6 +27,15 @@ export default function RevenueSummary({ revenueSplits }) {
   const catTotal = byCategory.reduce((s, c) => s + c.value, 0);
   const pmtTotal = byPayment.reduce((s, p) => s + p.value, 0);
 
+  if (catTotal === 0 && pmtTotal === 0) return (
+    <div className="sec">
+      <div className="sec-head"><div className="sec-title">Revenue Breakdown</div></div>
+      <div className="sec-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+        <span style={{ color: 'var(--ink-4)', fontSize: 12 }}>No data for this period</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="sec">
       <div className="sec-head">

@@ -10,12 +10,13 @@ function TopParksPanel({ topParks, initialTab = 'Revenue', headerExtra = null })
   const list = topParks[tab] || [];
   const max  = Math.max(...list.map(x => x.value));
   const fmt  = ['Revenue','Activities','F&B'].includes(tab) ? inr : num;
+  const allEmpty = METRICS.every(m => (topParks[m] || []).length === 0);
 
   return (
     <Section
       title="Top Performing Parks"
-      sub={`top 5 by ${tab.toLowerCase()}`}
-      actions={
+      sub={allEmpty ? null : `top 5 by ${tab.toLowerCase()}`}
+      actions={allEmpty ? headerExtra : (
         <>
           <div className="tabs">
             {METRICS.map(m => (
@@ -24,9 +25,14 @@ function TopParksPanel({ topParks, initialTab = 'Revenue', headerExtra = null })
           </div>
           {headerExtra}
         </>
-      }
+      )}
     >
       <div>
+        {list.length === 0 && (
+          <div style={{ color: 'var(--ink-4)', fontSize: 12, textAlign: 'center', padding: '32px 0' }}>
+            No data for this period
+          </div>
+        )}
         {list.map((row, i) => (
           <div key={row.parkId} className={'park-row' + (i === 0 ? ' top1' : '')}>
             <div className="park-rank">{i + 1}</div>
