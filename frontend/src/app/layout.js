@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "ZingParks — Operations Dashboard",
-  description: "ZingParks Ops Console",
+  title: "ZTech — Operations Dashboard",
+  description: "ZTech Operations Dashboard",
 };
 
 export const viewport = {

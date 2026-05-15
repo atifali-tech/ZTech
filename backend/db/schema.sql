@@ -125,3 +125,33 @@ CREATE TABLE IF NOT EXISTS revenue_trend (
   revenue  NUMERIC(12,2) NOT NULL DEFAULT 0,
   PRIMARY KEY (park_id, year, month)
 );
+
+-- Users (staff accounts)
+CREATE TABLE IF NOT EXISTS users (
+  id            VARCHAR(36)  PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name          VARCHAR(100) NOT NULL,
+  email         VARCHAR(150) NOT NULL UNIQUE,
+  password_hash TEXT         NOT NULL,
+  role          VARCHAR(30)  NOT NULL DEFAULT 'Cashier',
+  park_id       VARCHAR(10)  REFERENCES parks(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- Tickets (individual ticket transactions)
+CREATE TABLE IF NOT EXISTS tickets (
+  ticket_id     VARCHAR(20)   PRIMARY KEY,
+  created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  park_id       VARCHAR(10)   NOT NULL REFERENCES parks(id),
+  age_category  VARCHAR(20)   NOT NULL,  -- adult, kid, toddler, senior
+  quantity      SMALLINT      NOT NULL DEFAULT 1,
+  amount        NUMERIC(10,2) NOT NULL DEFAULT 0,
+  cgst_amount   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  sgst_amount   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  total_amount  NUMERIC(10,2) NOT NULL DEFAULT 0,
+  cash_amount   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  upi_amount    NUMERIC(10,2) NOT NULL DEFAULT 0,
+  card_amount   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  payment_mode  VARCHAR(20)   NOT NULL DEFAULT 'Cash',  -- Cash, UPI, Card
+  status        VARCHAR(20)   NOT NULL DEFAULT 'Confirmed',  -- Confirmed, Cancelled, Refunded
+  cashier_id    VARCHAR(36)   REFERENCES users(id) ON DELETE SET NULL
+);

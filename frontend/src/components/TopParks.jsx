@@ -1,10 +1,9 @@
 'use client';
 import { useState } from 'react';
-import { Section, Delta } from './Primitives';
+import { Section } from './Primitives';
 import { inr, num } from '../lib/format';
 
-const METRICS    = ['Revenue', 'Tickets', 'Footfall', 'Activities', 'F&B'];
-const TREND_DELTAS = [4.8, -1.2, 6.4, 2.1, -3.6];
+const METRICS = ['Revenue', 'Tickets', 'Footfall', 'Activities', 'F&B'];
 
 function TopParksPanel({ topParks, initialTab = 'Revenue', headerExtra = null }) {
   const [tab, setTab] = useState(initialTab);
@@ -38,7 +37,6 @@ function TopParksPanel({ topParks, initialTab = 'Revenue', headerExtra = null })
                 <div style={{ width: (row.value / max * 100) + '%', background: row.color }}/>
               </div>
             </div>
-            <Delta value={TREND_DELTAS[i]}/>
             <div className="park-val">{fmt(row.value)}</div>
           </div>
         ))}

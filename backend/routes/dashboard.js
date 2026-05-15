@@ -8,32 +8,73 @@ const router  = express.Router();
 
 // ── Filter helpers ────────────────────────────────────────────────────────────
 
-// Convert date-range string to a SQL fragment for columns named stat_date
-function dateSQL(range) {
+// Convert date-range string to a SQL fragment for columns named stat_date.
+// Date ranges are anchored to the selected filter date when provided.
+function dateSQL(range, date, col = 'stat_date') {
+  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? `DATE '${date}'` : 'CURRENT_DATE';
   switch (range) {
-    case 'Today':        return `stat_date = CURRENT_DATE`;
-    case 'Yesterday':    return `stat_date = CURRENT_DATE - INTERVAL '1 day'`;
-    case 'Last 30 days': return `stat_date >= CURRENT_DATE - INTERVAL '30 days'`;
-    case 'This Quarter': return `stat_date >= DATE_TRUNC('quarter', CURRENT_DATE)`;
-    case 'This Year':    return `stat_date >= DATE_TRUNC('year', CURRENT_DATE)`;
-    default:             return `stat_date >= CURRENT_DATE - INTERVAL '7 days'`; // 'Last 7 days'
+    case 'Today':        return `${col} = ${anchor}`;
+    case 'Yesterday':    return `${col} = ${anchor} - INTERVAL '1 day'`;
+    case 'Last 30 days': return `${col} > ${anchor} - INTERVAL '30 days' AND ${col} <= ${anchor}`;
+    case 'This Quarter': return `${col} >= DATE_TRUNC('quarter', ${anchor}) AND ${col} <= ${anchor}`;
+    case 'This Year':    return `${col} >= DATE_TRUNC('year', ${anchor}) AND ${col} <= ${anchor}`;
+    default:             return `${col} > ${anchor} - INTERVAL '7 days' AND ${col} <= ${anchor}`; // 'Last 7 days'
   }
 }
 
-// Build park/state/city WHERE clauses and params array.
-// parkCol: the park_id column reference in the target query (e.g. 'park_id', 'w.park_id')
-function parkSQL(park, state, city, parkCol = 'park_id') {
+// Previous-period date range — mirrors dateSQL but shifted back one period
+function prevDateSQL(range, date, col = 'stat_date') {
+  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? `DATE '${date}'` : 'CURRENT_DATE';
+  switch (range) {
+    case 'Today':        return `${col} = ${anchor} - INTERVAL '1 day'`;
+    case 'Yesterday':    return `${col} = ${anchor} - INTERVAL '2 days'`;
+    case 'Last 30 days': return `${col} > ${anchor} - INTERVAL '60 days' AND ${col} <= ${anchor} - INTERVAL '30 days'`;
+    case 'This Quarter': return `${col} >= DATE_TRUNC('quarter', ${anchor}) - INTERVAL '3 months' AND ${col} < DATE_TRUNC('quarter', ${anchor})`;
+    case 'This Year':    return `${col} >= DATE_TRUNC('year', ${anchor}) - INTERVAL '1 year' AND ${col} < DATE_TRUNC('year', ${anchor})`;
+    default:             return `${col} > ${anchor} - INTERVAL '14 days' AND ${col} <= ${anchor} - INTERVAL '7 days'`;
+  }
+}
+
+function pct(curr, prev) {
+  return prev > 0 ? parseFloat(((curr - prev) / prev * 100).toFixed(1)) : null;
+}
+
+function compareDeltaLabel(range) {
+  switch (range) {
+    case 'Today':        return 'vs yesterday';
+    case 'Yesterday':    return 'vs day before';
+    case 'Last 30 days': return 'vs prev 30 days';
+    case 'This Quarter': return 'vs prev quarter';
+    case 'This Year':    return 'vs prev year';
+    default:             return 'vs prev 7 days';
+  }
+}
+
+// Normalise city from req.query — can be a string (one city) or array (multiple)
+function extractCities(cityParam) {
+  if (!cityParam) return [];
+  return Array.isArray(cityParam) ? cityParam : [cityParam];
+}
+
+// Build park/state/cities WHERE clauses and params array.
+// cities: string[] — empty means "all cities"
+function parkSQL(park, state, cities, parkCol = 'park_id') {
   const params  = [];
   const clauses = [];
   if (park && park !== 'All Parks') {
     params.push(park);
-    clauses.push(`${parkCol} = (SELECT id FROM parks WHERE LOWER(name) = LOWER($${params.length}))`);
-  } else if (state && state !== 'All States') {
-    params.push(state);
-    clauses.push(`${parkCol} IN (SELECT id FROM parks WHERE LOWER(state) = LOWER($${params.length}))`);
-    if (city && city !== 'All Cities') {
-      params.push(city);
-      clauses.push(`${parkCol} IN (SELECT id FROM parks WHERE LOWER(city) = LOWER($${params.length}))`);
+    clauses.push(`${parkCol} = (
+      SELECT id FROM parks WHERE LOWER(name) = LOWER($${params.length}) LIMIT 1
+    )`);
+  } else {
+    if (state && state !== 'All States') {
+      params.push(state);
+      clauses.push(`${parkCol} IN (SELECT id FROM parks WHERE LOWER(state) = LOWER($${params.length}))`);
+    }
+    if (cities && cities.length > 0) {
+      const placeholders = cities.map((_, i) => `$${params.length + i + 1}`).join(', ');
+      clauses.push(`${parkCol} IN (SELECT id FROM parks WHERE LOWER(city) IN (${placeholders}))`);
+      params.push(...cities.map(c => c.toLowerCase()));
     }
   }
   return { clauses, params };
@@ -44,9 +85,10 @@ function parkSQL(park, state, city, parkCol = 'park_id') {
 router.get('/kpis', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { park, state, city, range } = req.query;
-    const { clauses: parkClauses, params } = parkSQL(park, state, city);
-    const allClauses = [dateSQL(range), ...parkClauses];
+    const { park, state, range, date, compare } = req.query;
+    const cities = extractCities(req.query.city);
+    const { clauses: dailyParkClauses, params: dailyParams } = parkSQL(park, state, cities, 'park_id');
+    const allClauses = [dateSQL(range, date), ...dailyParkClauses];
     const WHERE      = `WHERE ${allClauses.join(' AND ')}`;
 
     // Aggregate totals for the selected period
@@ -60,10 +102,11 @@ router.get('/kpis', async (req, res) => {
         MAX(peak_hour_revenue) AS peak_hour_revenue
       FROM daily_stats
       ${WHERE}
-    `, params);
+    `, dailyParams);
 
     // 7-day sparkline — always last 7 days, park filter applied
-    const sparkClauses = [`stat_date >= CURRENT_DATE - INTERVAL '7 days'`, ...parkClauses];
+    const anchor = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? `DATE '${date}'` : 'CURRENT_DATE';
+    const sparkClauses = [`stat_date > ${anchor} - INTERVAL '7 days'`, `stat_date <= ${anchor}`, ...dailyParkClauses];
     const spark = await pool.query(`
       SELECT
         stat_date,
@@ -76,32 +119,69 @@ router.get('/kpis', async (req, res) => {
       GROUP BY stat_date
       ORDER BY stat_date ASC
       LIMIT 7
-    `, params);
+    `, dailyParams);
 
-    const [peakRows, todayCount] = await Promise.all([
+    // Separate parkSQL for tickets table (uses 't.park_id' alias)
+    const { clauses: ticketParkClauses, params: ticketParams } = parkSQL(park, state, cities, 't.park_id');
+    const ticketWhere = `DATE(t.created_at) > ${anchor} - INTERVAL '7 days' AND DATE(t.created_at) <= ${anchor}${ticketParkClauses.length ? ` AND ${ticketParkClauses.join(' AND ')}` : ''}`;
+    const todayWhere  = `DATE(t.created_at) = ${anchor}${ticketParkClauses.length ? ` AND ${ticketParkClauses.join(' AND ')}` : ''}`;
+
+    const [peakRows, todayCount, weekResult, monthResult] = await Promise.all([
       pool.query(`
-        SELECT DATE(created_at) AS day, MAX(cnt) AS peak
+        SELECT day, MAX(cnt) AS peak
         FROM (
-          SELECT DATE(created_at)             AS day,
-                 EXTRACT(hour FROM created_at) AS hr,
-                 COUNT(*)                      AS cnt
-          FROM tickets
-          WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+          SELECT DATE(t.created_at)             AS day,
+                 EXTRACT(hour FROM t.created_at) AS hr,
+                 COUNT(*)                        AS cnt
+          FROM tickets t
+          WHERE ${ticketWhere}
           GROUP BY 1, 2
         ) sub
         GROUP BY 1
         ORDER BY 1 ASC
         LIMIT 7
-      `),
+      `, ticketParams),
       pool.query(`
         SELECT COUNT(*) AS cnt
-        FROM tickets
-        WHERE DATE(created_at) = CURRENT_DATE
-      `),
+        FROM tickets t
+        WHERE ${todayWhere}
+      `, ticketParams),
+      pool.query(`
+        SELECT SUM(total_revenue) AS revenue FROM daily_stats
+        WHERE stat_date > ${anchor} - INTERVAL '7 days' AND stat_date <= ${anchor}
+          ${dailyParkClauses.length ? `AND ${dailyParkClauses.join(' AND ')}` : ''}
+      `, dailyParams),
+      pool.query(`
+        SELECT SUM(total_revenue) AS revenue FROM daily_stats
+        WHERE stat_date > ${anchor} - INTERVAL '30 days' AND stat_date <= ${anchor}
+          ${dailyParkClauses.length ? `AND ${dailyParkClauses.join(' AND ')}` : ''}
+      `, dailyParams),
     ]);
 
     const t    = today.rows[0];
     const rows = spark.rows;
+
+    // Previous-period comparison — only when compare=true
+    let deltaVisitors = null, deltaRevenue = null, deltaTickets = null, deltaLabel = null;
+    if (compare === 'true') {
+      const prevClauses = [prevDateSQL(range, date), ...dailyParkClauses];
+      const prev = await pool.query(`
+        SELECT SUM(total_visitors) AS pv, SUM(total_revenue) AS pr, SUM(total_tickets) AS pt
+        FROM daily_stats
+        WHERE ${prevClauses.join(' AND ')}
+      `, dailyParams);
+      const p  = prev.rows[0];
+      const pv = parseInt(p.pv)    || 0;
+      const pr = parseFloat(p.pr)  || 0;
+      const pt = parseInt(p.pt)    || 0;
+      const cv = parseInt(t.total_visitors)   || 0;
+      const cr = parseFloat(t.total_revenue)  || 0;
+      const ct = parseInt(t.total_tickets)    || 0;
+      deltaVisitors = pct(cv, pv);
+      deltaRevenue  = pct(cr, pr);
+      deltaTickets  = pct(ct, pt);
+      deltaLabel    = compareDeltaLabel(range);
+    }
 
     res.json({
       totalVisitors:    parseInt(t.total_visitors)      || 0,
@@ -115,9 +195,40 @@ router.get('/kpis', async (req, res) => {
       sparkTickets:     rows.map(r => parseInt(r.tickets)),
       sparkPeak:        peakRows.rows.map(r => parseInt(r.peak)),
       liveCount:        parseInt(todayCount.rows[0].cnt) || 0,
+      weekRevenue:      parseFloat(weekResult.rows[0]?.revenue)  || 0,
+      monthRevenue:     parseFloat(monthResult.rows[0]?.revenue) || 0,
+      deltaVisitors,
+      deltaRevenue,
+      deltaTickets,
+      deltaLabel,
     });
   } catch (err) {
     console.error('/kpis error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── TODAY STATS (topbar live pill) ─────────────────────────────────────────
+// GET /api/dashboard/today-stats — always current day, all parks, no filter
+router.get('/today-stats', async (req, res) => {
+  const pool = req.app.locals.pool;
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        COALESCE(SUM(quantity), 0)::int          AS visitors,
+        COALESCE(SUM(total_amount), 0)::numeric  AS revenue,
+        COALESCE(COUNT(ticket_id), 0)::int       AS tickets
+      FROM tickets
+      WHERE DATE(created_at) = CURRENT_DATE
+        AND status != 'Cancelled'
+    `);
+    res.json({
+      visitors: parseInt(rows[0].visitors)    || 0,
+      revenue:  parseFloat(rows[0].revenue)   || 0,
+      tickets:  parseInt(rows[0].tickets)     || 0,
+    });
+  } catch (err) {
+    console.error('[today-stats]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -127,20 +238,27 @@ router.get('/kpis', async (req, res) => {
 router.get('/demographics', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { range } = req.query;
+    const { park, state, range, date } = req.query; const cities = extractCities(req.query.city);
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
 
     const result = await pool.query(`
-      SELECT age_group,
-             SUM(male_count)   AS male_count,
-             SUM(female_count) AS female_count,
-             SUM(other_count)  AS other_count,
-             SUM(male_count + female_count + other_count) AS total
-      FROM demographics
-      WHERE ${dateSQL(range)}
-      GROUP BY age_group
+      SELECT CASE age_group
+               WHEN '0-12'  THEN 'toddler'
+               WHEN '13-17' THEN 'kid'
+               WHEN '18-35' THEN 'adult'
+               WHEN '36-60' THEN 'adult'
+               WHEN '60+'   THEN 'senior'
+             END AS age_group,
+             SUM(CASE WHEN gender = 'Male'   THEN count ELSE 0 END) AS male_count,
+             SUM(CASE WHEN gender = 'Female' THEN count ELSE 0 END) AS female_count,
+             SUM(CASE WHEN gender = 'Other'  THEN count ELSE 0 END) AS other_count,
+             SUM(count) AS total
+      FROM visitor_demographics
+      WHERE ${dateSQL(range, date, 'recorded_date')} ${parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : ''}
+      GROUP BY 1
       ORDER BY
         CASE age_group WHEN 'adult' THEN 1 WHEN 'kid' THEN 2 WHEN 'toddler' THEN 3 WHEN 'senior' THEN 4 END
-    `);
+    `, params);
 
     const totalAll = result.rows.reduce((s, r) => s + parseInt(r.total), 0);
 
@@ -171,14 +289,51 @@ router.get('/demographics', async (req, res) => {
 router.get('/revenue-splits', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { range } = req.query;
-    const dateCond  = dateSQL(range);
+    const { park, state, range, date } = req.query; const cities = extractCities(req.query.city);
+    const { clauses: ticketParkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const { clauses: revenueParkClauses } = parkSQL(park, state, cities, 'rc.park_id');
+    const ticketWhere  = `${dateSQL(range, date, 'DATE(t.created_at)')} ${ticketParkClauses.length ? `AND ${ticketParkClauses.join(' AND ')}` : ''}`;
+    const revenueWhere = `${dateSQL(range, date, 'rc.date')} ${revenueParkClauses.length ? `AND ${revenueParkClauses.join(' AND ')}` : ''}`;
 
     const [demo, cat, src, pay] = await Promise.all([
-      pool.query(`SELECT demo_group   AS name, SUM(revenue) AS revenue FROM revenue_by_demographic WHERE ${dateCond} GROUP BY demo_group   ORDER BY revenue DESC`),
-      pool.query(`SELECT category     AS name, SUM(revenue) AS revenue FROM revenue_by_category    WHERE ${dateCond} GROUP BY category     ORDER BY revenue DESC`),
-      pool.query(`SELECT source_name  AS name, SUM(revenue) AS revenue FROM revenue_by_source      WHERE ${dateCond} GROUP BY source_name  ORDER BY revenue DESC`),
-      pool.query(`SELECT payment_mode AS name, SUM(revenue) AS revenue FROM revenue_by_payment     WHERE ${dateCond} GROUP BY payment_mode ORDER BY revenue DESC`),
+      pool.query(`
+        SELECT TRIM(CASE t.age_category WHEN 'Senior Citizen' THEN 'Senior' ELSE t.age_category END) AS name,
+               SUM(t.total_amount) AS revenue
+        FROM tickets t
+        WHERE ${ticketWhere}
+        GROUP BY 1
+        ORDER BY revenue DESC
+      `, params),
+      pool.query(`
+        SELECT name, SUM(revenue) AS revenue
+        FROM (
+          SELECT 'Tickets' AS name, SUM(t.total_amount) AS revenue
+          FROM tickets t
+          WHERE ${ticketWhere}
+          UNION ALL
+          SELECT TRIM(rc.category) AS name, SUM(rc.amount) AS revenue
+          FROM revenue_categories rc
+          WHERE ${revenueWhere}
+          GROUP BY 1
+        ) s
+        GROUP BY 1
+        ORDER BY revenue DESC
+      `, params),
+      pool.query(`
+        SELECT TRIM(t.source) AS name, SUM(t.total_amount) AS revenue
+        FROM tickets t
+        WHERE ${ticketWhere}
+        GROUP BY 1
+        ORDER BY revenue DESC
+      `, params),
+      pool.query(`
+        SELECT CASE TRIM(t.payment_mode) WHEN 'Split' THEN 'Others' ELSE TRIM(t.payment_mode) END AS name,
+               SUM(t.total_amount) AS revenue
+        FROM tickets t
+        WHERE ${ticketWhere}
+        GROUP BY 1
+        ORDER BY revenue DESC
+      `, params),
     ]);
 
     const DEMO_COLORS = { Adult: '#0E7C66', Child: '#5A6BCF', Toddler: '#D89614', Senior: '#8C5BB3' };
@@ -206,17 +361,18 @@ router.get('/revenue-splits', async (req, res) => {
 router.get('/hourly', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { range } = req.query;
+    const { park, state, range, date } = req.query; const cities = extractCities(req.query.city);
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
 
     const result = await pool.query(`
-      SELECT hour_of_day,
-             SUM(footfall) AS footfall,
-             SUM(revenue)  AS revenue
-      FROM hourly_stats
-      WHERE ${dateSQL(range)}
-      GROUP BY hour_of_day
-      ORDER BY hour_of_day ASC
-    `);
+      SELECT EXTRACT(HOUR FROM created_at)::int AS hour_of_day,
+             SUM(quantity) AS footfall,
+             SUM(total_amount) AS revenue
+      FROM tickets
+      WHERE ${dateSQL(range, date, 'DATE(created_at)')} ${parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : ''}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `, params);
 
     res.json({
       hours:    result.rows.map(r => parseInt(r.hour_of_day)),
@@ -234,11 +390,17 @@ router.get('/hourly', async (req, res) => {
 router.get('/heatmap', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
+    const { park, state, range, date } = req.query; const cities = extractCities(req.query.city);
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
     const result = await pool.query(`
-      SELECT day_of_week, hour_of_day, footfall
-      FROM heatmap_data
-      ORDER BY day_of_week, hour_of_day
-    `);
+      SELECT ((EXTRACT(DOW FROM created_at)::int + 6) % 7) AS day_of_week,
+             EXTRACT(HOUR FROM created_at)::int AS hour_of_day,
+             SUM(quantity) AS footfall
+      FROM tickets
+      WHERE ${dateSQL(range, date, 'DATE(created_at)')} ${parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : ''}
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `, params);
 
     const matrix = Array.from({ length: 7 }, () => Array(17).fill(0));
     const hours  = Array.from({ length: 17 }, (_, i) => 6 + i);
@@ -264,18 +426,20 @@ router.get('/heatmap', async (req, res) => {
 router.get('/weekend-weekday', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { park, state, city } = req.query;
-    const { clauses, params } = parkSQL(park, state, city, 'w.park_id');
-    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const { park, state, range, date } = req.query; const cities = extractCities(req.query.city);
+    const { clauses, params } = parkSQL(park, state, cities, 't.park_id');
 
     const result = await pool.query(`
-      SELECT w.park_id, p.name AS park_name, p.color_hex AS color,
-             w.weekend_revenue, w.weekday_revenue,
-             w.weekend_footfall, w.weekday_footfall
-      FROM weekend_weekday w
-      JOIN parks p ON p.id = w.park_id
-      ${where}
-      ORDER BY w.weekend_revenue DESC
+      SELECT t.park_id, p.name AS park_name, p.color_hex AS color,
+             SUM(CASE WHEN EXTRACT(DOW FROM t.created_at) IN (0, 6) THEN t.total_amount ELSE 0 END) AS weekend_revenue,
+             SUM(CASE WHEN EXTRACT(DOW FROM t.created_at) NOT IN (0, 6) THEN t.total_amount ELSE 0 END) AS weekday_revenue,
+             SUM(CASE WHEN EXTRACT(DOW FROM t.created_at) IN (0, 6) THEN t.quantity ELSE 0 END) AS weekend_footfall,
+             SUM(CASE WHEN EXTRACT(DOW FROM t.created_at) NOT IN (0, 6) THEN t.quantity ELSE 0 END) AS weekday_footfall
+      FROM tickets t
+      JOIN parks p ON p.id = t.park_id
+      WHERE ${dateSQL(range, date, 'DATE(t.created_at)')} ${clauses.length ? `AND ${clauses.join(' AND ')}` : ''}
+      GROUP BY t.park_id, p.name, p.color_hex
+      ORDER BY weekend_revenue DESC
     `, params);
 
     res.json({
@@ -347,16 +511,43 @@ router.get('/comparative', async (req, res) => {
 router.get('/top-parks', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { park, state, city } = req.query;
-    const { clauses, params } = parkSQL(park, state, city, 't.park_id');
-    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const { park, state, range, date } = req.query; const cities = extractCities(req.query.city);
+    const { clauses: ticketParkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const { clauses: revenueParkClauses } = parkSQL(park, state, cities, 'rc.park_id');
+    const ticketWhere  = `${dateSQL(range, date, 'DATE(t.created_at)')} ${ticketParkClauses.length ? `AND ${ticketParkClauses.join(' AND ')}` : ''}`;
+    const revenueWhere = `${dateSQL(range, date, 'rc.date')} ${revenueParkClauses.length ? `AND ${revenueParkClauses.join(' AND ')}` : ''}`;
 
     const result = await pool.query(`
+      WITH metrics AS (
+        SELECT t.park_id, 'Revenue' AS metric_name, SUM(t.total_amount)::numeric AS metric_value
+        FROM tickets t
+        WHERE ${ticketWhere}
+        GROUP BY t.park_id
+        UNION ALL
+        SELECT t.park_id, 'Tickets' AS metric_name, COUNT(DISTINCT t.ticket_id)::numeric AS metric_value
+        FROM tickets t
+        WHERE ${ticketWhere}
+        GROUP BY t.park_id
+        UNION ALL
+        SELECT t.park_id, 'Footfall' AS metric_name, SUM(t.quantity)::numeric AS metric_value
+        FROM tickets t
+        WHERE ${ticketWhere}
+        GROUP BY t.park_id
+        UNION ALL
+        SELECT rc.park_id, 'Activities' AS metric_name, SUM(rc.amount)::numeric AS metric_value
+        FROM revenue_categories rc
+        WHERE rc.category = 'Activities' AND ${revenueWhere}
+        GROUP BY rc.park_id
+        UNION ALL
+        SELECT rc.park_id, 'F&B' AS metric_name, SUM(rc.amount)::numeric AS metric_value
+        FROM revenue_categories rc
+        WHERE rc.category = 'F&B' AND ${revenueWhere}
+        GROUP BY rc.park_id
+      )
       SELECT t.park_id, t.metric_name, t.metric_value,
              p.name AS park_name, p.city, p.state, p.color_hex AS color
-      FROM top_parks_metrics t
+      FROM metrics t
       JOIN parks p ON p.id = t.park_id
-      ${where}
       ORDER BY t.metric_name, t.metric_value DESC
     `, params);
 
@@ -387,8 +578,8 @@ router.get('/top-parks', async (req, res) => {
 router.get('/revenue-trend', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { park, state, city } = req.query;
-    const { clauses, params } = parkSQL(park, state, city, 'rt.park_id');
+    const { park, state } = req.query; const cities = extractCities(req.query.city);
+    const { clauses, params } = parkSQL(park, state, cities, 'rt.park_id');
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
     const result = await pool.query(`

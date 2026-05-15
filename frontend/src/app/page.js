@@ -1,35 +1,24 @@
 import { api } from '../lib/api';
 import Dashboard from '../components/Dashboard';
-import { dashboardFallback } from './dashboardFallback';
+
+async function safeFetch(fn) {
+  try { return await fn(); } catch { return null; }
+}
 
 export default async function Home() {
-  // Fetch all data in parallel on the server
-  const [kpis, demographics, revenueSplits, hourly, heatmap, weekendWeekday, comparative, topParks, revenueTrend] =
-    await Promise.allSettled([
-      api.kpis(),
-      api.demographics(),
-      api.revenueSplits(),
-      api.hourly(),
-      api.heatmap(),
-      api.weekendWeekday(),
-      api.comparative(),
-      api.topParks(),
-      api.revenueTrend(),
-    ]);
-
-  const getData = (result, key) => result.status === 'fulfilled' ? result.value : dashboardFallback[key];
+  const [kpis, revenueSplits, hourly, topParks] = await Promise.all([
+    safeFetch(() => api.kpis()),
+    safeFetch(() => api.revenueSplits()),
+    safeFetch(() => api.hourly()),
+    safeFetch(() => api.topParks()),
+  ]);
 
   return (
     <Dashboard
-      kpis={getData(kpis, 'kpis')}
-      demographics={getData(demographics, 'demographics')}
-      revenueSplits={getData(revenueSplits, 'revenueSplits')}
-      hourly={getData(hourly, 'hourly')}
-      heatmap={getData(heatmap, 'heatmap')}
-      weekendWeekday={getData(weekendWeekday, 'weekendWeekday')}
-      comparative={getData(comparative, 'comparative')}
-      topParks={getData(topParks, 'topParks')}
-      revenueTrend={getData(revenueTrend, 'revenueTrend')}
+      kpis={kpis}
+      revenueSplits={revenueSplits}
+      hourly={hourly}
+      topParks={topParks}
     />
   );
 }

@@ -3,20 +3,20 @@ import Sidebar from '../../components/Sidebar';
 import Topbar from '../../components/Topbar';
 import BottomNav from '../../components/BottomNav';
 import AnalyticsClient from '../../components/AnalyticsClient';
-import { dashboardFallback } from '../dashboardFallback';
+
+async function safeFetch(fn) {
+  try { return await fn(); } catch { return null; }
+}
 
 export default async function AnalyticsPage() {
-  const [demographics, revenueSplits, heatmap, weekendWeekday, comparative, topParks] =
-    await Promise.allSettled([
-      api.demographics(),
-      api.revenueSplits(),
-      api.heatmap(),
-      api.weekendWeekday(),
-      api.comparative(),
-      api.topParks(),
-    ]);
-
-  const get = (r, k) => r.status === 'fulfilled' ? r.value : dashboardFallback[k];
+  const [demographics, revenueSplits, heatmap, weekendWeekday, comparative, topParks] = await Promise.all([
+    safeFetch(() => api.demographics()),
+    safeFetch(() => api.revenueSplits()),
+    safeFetch(() => api.heatmap()),
+    safeFetch(() => api.weekendWeekday()),
+    safeFetch(() => api.comparative()),
+    safeFetch(() => api.topParks()),
+  ]);
 
   return (
     <div className="app">
@@ -25,12 +25,12 @@ export default async function AnalyticsPage() {
         <Topbar current="Analytics" icon="chart"/>
         <div className="canvas">
           <AnalyticsClient
-            demographics={get(demographics,    'demographics')}
-            revenueSplits={get(revenueSplits,  'revenueSplits')}
-            heatmap={get(heatmap,              'heatmap')}
-            weekendWeekday={get(weekendWeekday,'weekendWeekday')}
-            comparative={get(comparative,      'comparative')}
-            topParks={get(topParks,            'topParks')}
+            demographics={demographics}
+            revenueSplits={revenueSplits}
+            heatmap={heatmap}
+            weekendWeekday={weekendWeekday}
+            comparative={comparative}
+            topParks={topParks}
           />
         </div>
       </div>

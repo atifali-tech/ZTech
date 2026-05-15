@@ -41,7 +41,11 @@ router.get('/', async (req, res) => {
   }
   if (parkId) {
     params.push(parkId);
-    conditions.push(`t.park_id = $${params.length}`);
+    conditions.push(`t.park_id = (
+      SELECT id FROM parks
+      WHERE id = $${params.length} OR LOWER(name) = LOWER($${params.length})
+      LIMIT 1
+    )`);
   }
   if (ageCategory) {
     params.push(ageCategory.toLowerCase());

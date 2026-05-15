@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Section } from './Primitives';
 import { num, formatHour } from '../lib/format';
 
@@ -47,7 +47,7 @@ export default function Heatmap({ data, title = 'Peak Hour Heatmap', headerExtra
             <div key={i} className="hm-col-label">{i % 2 === 0 ? formatHour(hr) : ''}</div>
           ))}
           {days.map((d, di) => (
-            <React.Fragment key={di}>
+            <Fragment key={di}>
               <div className="hm-row-label"
                 style={{ fontWeight: di === peakDayIdx ? 700 : 500, color: di === peakDayIdx ? 'var(--ink)' : 'var(--ink-4)' }}>
                 {d}
@@ -62,7 +62,7 @@ export default function Heatmap({ data, title = 'Peak Hour Heatmap', headerExtra
                   onMouseLeave={() => setHover(null)}
                 />
               ))}
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
 

@@ -2,9 +2,12 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
+const today = new Date();
+const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
 const DEFAULT_FILTERS = {
   park: 'All Parks', state: 'All States', city: 'All Cities',
-  range: 'Last 7 days', compare: false,
+  range: 'Last 7 days', date: todayStr, compare: false,
 };
 import FilterBar from './FilterBar';
 import DemographicsSection from './Demographics';
@@ -265,6 +268,7 @@ export default function AnalyticsClient({
   const [filters,   setFilters]   = useState(DEFAULT_FILTERS);
   const [viewModes, setViewModes] = useState({});
   const [loading,   setLoading]   = useState(false);
+  const [parkCount, setParkCount] = useState(0);
 
   const fetchData = async (f) => {
     setLoading(true);
@@ -288,8 +292,10 @@ export default function AnalyticsClient({
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchData(DEFAULT_FILTERS); }, []);
+  useEffect(() => {
+    fetchData(DEFAULT_FILTERS);
+    api.parks().then(ps => setParkCount(ps.length)).catch(() => {});
+  }, []);
 
   const onApply = () => fetchData(filters);
   const onExport = () => {};
@@ -341,7 +347,9 @@ export default function AnalyticsClient({
         <Icon name="info" size={13} color="var(--ink-4)"/>
         Showing data for{' '}
         <strong style={{ color: 'var(--ink)' }}>
-          {filters.park === 'All Parks' ? 'All 7 parks' : filters.park}
+          {filters.park !== 'All Parks' ? filters.park
+            : filters.state !== 'All States' ? filters.state
+            : `All ${parkCount || '—'} parks`}
         </strong>{' '}
         · {filters.range.toLowerCase()}
         <span className="spacer"/>
@@ -438,7 +446,7 @@ export default function AnalyticsClient({
       </div>
 
       <div style={{ textAlign: 'center', color: 'var(--ink-5)', fontSize: 11, marginTop: 8 }}>
-        ZingParks Ops Console v1.0 · Phase 1 · © NovoStack 2026
+        ZTech Operations Dashboard v1.0 · © NovoStack 2026
       </div>
     </>
   );
