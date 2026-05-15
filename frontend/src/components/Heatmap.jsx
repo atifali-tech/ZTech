@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Section } from './Primitives';
 import { num, formatHour } from '../lib/format';
 

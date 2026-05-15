@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Section } from './Primitives';
-import { Delta } from './Primitives';
+import { Section, Delta } from './Primitives';
 import { inr, num } from '../lib/format';
 
 const METRICS    = ['Revenue', 'Tickets', 'Footfall', 'Activities', 'F&B'];

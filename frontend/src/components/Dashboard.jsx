@@ -1,5 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
+
+const DEFAULT_FILTERS = {
+  park: 'All Parks', state: 'All States', city: 'All Cities',
+  range: 'Last 7 days', compare: false,
+};
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import FilterBar from './FilterBar';
@@ -11,18 +17,41 @@ import RevenueSummary from './RevenueSummary';
 import Icon from './Icon';
 import BottomNav from './BottomNav';
 
-export default function Dashboard({ kpis, revenueSplits, hourly, topParks }) {
-  const [filters, setFilters] = useState({
-    park: 'All Parks', state: 'All States', city: 'All Cities',
-    range: 'Last 7 days', compare: false,
-  });
+export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSplits, hourly: initHourly, topParks: initTopParks }) {
+  const [kpis,          setKpis]          = useState(initKpis);
+  const [revenueSplits, setRevenueSplits] = useState(initRevenueSplits);
+  const [hourly,        setHourly]        = useState(initHourly);
+  const [topParks,      setTopParks]      = useState(initTopParks);
+
+  const [filters,     setFilters]     = useState(DEFAULT_FILTERS);
   const [loading,     setLoading]     = useState(false);
   const [exportToast, setExportToast] = useState(null);
 
-  const onApply = () => {
+  const fetchData = async (f) => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 700);
+    try {
+      const [r0, r1, r2, r3] = await Promise.allSettled([
+        api.kpis(f),
+        api.revenueSplits(f),
+        api.hourly(f),
+        api.topParks(f),
+      ]);
+      if (r0.status === 'fulfilled') setKpis(r0.value);
+      if (r1.status === 'fulfilled') setRevenueSplits(r1.value);
+      if (r2.status === 'fulfilled') setHourly(r2.value);
+      if (r3.status === 'fulfilled') setTopParks(r3.value);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData(DEFAULT_FILTERS); }, []);
+
+  const onApply = () => {
+    fetchData(filters);
+  };
+
   const onExport = (kind) => {
     setExportToast(`Exporting ${kind}…`);
     setTimeout(() => setExportToast(null), 2200);

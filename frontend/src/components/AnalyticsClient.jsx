@@ -1,5 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
+
+const DEFAULT_FILTERS = {
+  park: 'All Parks', state: 'All States', city: 'All Cities',
+  range: 'Last 7 days', compare: false,
+};
 import FilterBar from './FilterBar';
 import DemographicsSection from './Demographics';
 import RevenueSplits from './RevenueSplits';
@@ -241,14 +247,51 @@ function csvDemographics(demo) {
 
 // ── Main ──────────────────────────────────────────────────────
 export default function AnalyticsClient({
-  demographics, revenueSplits, heatmap, weekendWeekday, comparative, topParks,
+  demographics:   initDemographics,
+  revenueSplits:  initRevenueSplits,
+  heatmap:        initHeatmap,
+  weekendWeekday: initWeekendWeekday,
+  comparative:    initComparative,
+  topParks:       initTopParks,
 }) {
+  const [demographics,   setDemographics]   = useState(initDemographics);
+  const [revenueSplits,  setRevenueSplits]  = useState(initRevenueSplits);
+  const [heatmap,        setHeatmap]        = useState(initHeatmap);
+  const [weekendWeekday, setWeekendWeekday] = useState(initWeekendWeekday);
+  const [comparative,    setComparative]    = useState(initComparative);
+  const [topParks,       setTopParks]       = useState(initTopParks);
+
   const [tab,       setTab]       = useState('Footfall');
-  const [filters,   setFilters]   = useState({ park: 'All Parks', state: 'All States', city: 'All Cities', range: 'Last 7 days', compare: false });
+  const [filters,   setFilters]   = useState(DEFAULT_FILTERS);
   const [viewModes, setViewModes] = useState({});
   const [loading,   setLoading]   = useState(false);
 
-  const onApply  = () => { setLoading(true); setTimeout(() => setLoading(false), 700); };
+  const fetchData = async (f) => {
+    setLoading(true);
+    try {
+      const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
+        api.demographics(f),
+        api.revenueSplits(f),
+        api.heatmap(f),
+        api.weekendWeekday(f),
+        api.comparative(f),
+        api.topParks(f),
+      ]);
+      if (r0.status === 'fulfilled') setDemographics(r0.value);
+      if (r1.status === 'fulfilled') setRevenueSplits(r1.value);
+      if (r2.status === 'fulfilled') setHeatmap(r2.value);
+      if (r3.status === 'fulfilled') setWeekendWeekday(r3.value);
+      if (r4.status === 'fulfilled') setComparative(r4.value);
+      if (r5.status === 'fulfilled') setTopParks(r5.value);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData(DEFAULT_FILTERS); }, []);
+
+  const onApply = () => fetchData(filters);
   const onExport = () => {};
 
   const isChart = id => (viewModes[id] || 'chart') === 'chart';

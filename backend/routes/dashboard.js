@@ -6,26 +6,64 @@
 const express = require('express');
 const router  = express.Router();
 
+// ── Filter helpers ────────────────────────────────────────────────────────────
+
+// Convert date-range string to a SQL fragment for columns named stat_date
+function dateSQL(range) {
+  switch (range) {
+    case 'Today':        return `stat_date = CURRENT_DATE`;
+    case 'Yesterday':    return `stat_date = CURRENT_DATE - INTERVAL '1 day'`;
+    case 'Last 30 days': return `stat_date >= CURRENT_DATE - INTERVAL '30 days'`;
+    case 'This Quarter': return `stat_date >= DATE_TRUNC('quarter', CURRENT_DATE)`;
+    case 'This Year':    return `stat_date >= DATE_TRUNC('year', CURRENT_DATE)`;
+    default:             return `stat_date >= CURRENT_DATE - INTERVAL '7 days'`; // 'Last 7 days'
+  }
+}
+
+// Build park/state/city WHERE clauses and params array.
+// parkCol: the park_id column reference in the target query (e.g. 'park_id', 'w.park_id')
+function parkSQL(park, state, city, parkCol = 'park_id') {
+  const params  = [];
+  const clauses = [];
+  if (park && park !== 'All Parks') {
+    params.push(park);
+    clauses.push(`${parkCol} = (SELECT id FROM parks WHERE LOWER(name) = LOWER($${params.length}))`);
+  } else if (state && state !== 'All States') {
+    params.push(state);
+    clauses.push(`${parkCol} IN (SELECT id FROM parks WHERE LOWER(state) = LOWER($${params.length}))`);
+    if (city && city !== 'All Cities') {
+      params.push(city);
+      clauses.push(`${parkCol} IN (SELECT id FROM parks WHERE LOWER(city) = LOWER($${params.length}))`);
+    }
+  }
+  return { clauses, params };
+}
+
 // ─── KPIs ────────────────────────────────────────────────────────────────────
-// GET /api/dashboard/kpis
-// Returns: KPI card values + 7-day sparklines + live count
+// GET /api/dashboard/kpis?park=&state=&city=&range=
 router.get('/kpis', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    // Aggregate totals for today across all parks
+    const { park, state, city, range } = req.query;
+    const { clauses: parkClauses, params } = parkSQL(park, state, city);
+    const allClauses = [dateSQL(range), ...parkClauses];
+    const WHERE      = `WHERE ${allClauses.join(' AND ')}`;
+
+    // Aggregate totals for the selected period
     const today = await pool.query(`
       SELECT
         SUM(total_visitors)    AS total_visitors,
         SUM(total_revenue)     AS total_revenue,
         SUM(total_tickets)     AS total_tickets,
         MAX(peak_hour)         AS peak_hour,
-        SUM(peak_footfall)     AS peak_footfall,
-        SUM(peak_hour_revenue) AS peak_hour_revenue
+        MAX(peak_footfall)     AS peak_footfall,
+        MAX(peak_hour_revenue) AS peak_hour_revenue
       FROM daily_stats
-      WHERE stat_date = (SELECT MAX(stat_date) FROM daily_stats)
-    `);
+      ${WHERE}
+    `, params);
 
-    // 7-day sparkline — one value per day (sum across all parks)
+    // 7-day sparkline — always last 7 days, park filter applied
+    const sparkClauses = [`stat_date >= CURRENT_DATE - INTERVAL '7 days'`, ...parkClauses];
     const spark = await pool.query(`
       SELECT
         stat_date,
@@ -34,27 +72,49 @@ router.get('/kpis', async (req, res) => {
         SUM(total_tickets)   AS tickets,
         SUM(peak_footfall)   AS peak
       FROM daily_stats
+      WHERE ${sparkClauses.join(' AND ')}
       GROUP BY stat_date
       ORDER BY stat_date ASC
       LIMIT 7
-    `);
+    `, params);
 
-    const t = today.rows[0];
+    const [peakRows, todayCount] = await Promise.all([
+      pool.query(`
+        SELECT DATE(created_at) AS day, MAX(cnt) AS peak
+        FROM (
+          SELECT DATE(created_at)             AS day,
+                 EXTRACT(hour FROM created_at) AS hr,
+                 COUNT(*)                      AS cnt
+          FROM tickets
+          WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+          GROUP BY 1, 2
+        ) sub
+        GROUP BY 1
+        ORDER BY 1 ASC
+        LIMIT 7
+      `),
+      pool.query(`
+        SELECT COUNT(*) AS cnt
+        FROM tickets
+        WHERE DATE(created_at) = CURRENT_DATE
+      `),
+    ]);
+
+    const t    = today.rows[0];
     const rows = spark.rows;
 
     res.json({
-      totalVisitors:    parseInt(t.total_visitors)     || 0,
-      totalRevenue:     parseFloat(t.total_revenue)    || 0,
-      totalTickets:     parseInt(t.total_tickets)      || 0,
-      peakHour:         parseInt(t.peak_hour)          || 18,
-      peakFootfall:     parseInt(t.peak_footfall)      || 0,
-      peakHourRevenue:  parseFloat(t.peak_hour_revenue)|| 0,
+      totalVisitors:    parseInt(t.total_visitors)      || 0,
+      totalRevenue:     parseFloat(t.total_revenue)     || 0,
+      totalTickets:     parseInt(t.total_tickets)       || 0,
+      peakHour:         parseInt(t.peak_hour)           || 18,
+      peakFootfall:     parseInt(t.peak_footfall)       || 0,
+      peakHourRevenue:  parseFloat(t.peak_hour_revenue) || 0,
       sparkVisitors:    rows.map(r => parseInt(r.visitors)),
       sparkRevenue:     rows.map(r => parseFloat(r.revenue)),
       sparkTickets:     rows.map(r => parseInt(r.tickets)),
-      // sparkPeak represents single-park peak-hour visitor counts (small decorative values)
-      sparkPeak:        [16, 17, 18, 14, 21, 24, 22],
-      liveCount:        Math.floor(1200 + Math.random() * 200), // simulated live
+      sparkPeak:        peakRows.rows.map(r => parseInt(r.peak)),
+      liveCount:        parseInt(todayCount.rows[0].cnt) || 0,
     });
   } catch (err) {
     console.error('/kpis error:', err.message);
@@ -63,15 +123,21 @@ router.get('/kpis', async (req, res) => {
 });
 
 // ─── DEMOGRAPHICS ────────────────────────────────────────────────────────────
-// GET /api/dashboard/demographics
+// GET /api/dashboard/demographics?range=
 router.get('/demographics', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
+    const { range } = req.query;
+
     const result = await pool.query(`
-      SELECT age_group, male_count, female_count, other_count,
-             (male_count + female_count + other_count) AS total
+      SELECT age_group,
+             SUM(male_count)   AS male_count,
+             SUM(female_count) AS female_count,
+             SUM(other_count)  AS other_count,
+             SUM(male_count + female_count + other_count) AS total
       FROM demographics
-      WHERE stat_date = (SELECT MAX(stat_date) FROM demographics)
+      WHERE ${dateSQL(range)}
+      GROUP BY age_group
       ORDER BY
         CASE age_group WHEN 'adult' THEN 1 WHEN 'kid' THEN 2 WHEN 'toddler' THEN 3 WHEN 'senior' THEN 4 END
     `);
@@ -84,14 +150,14 @@ router.get('/demographics', async (req, res) => {
     res.json({
       total: totalAll,
       demographics: result.rows.map(r => ({
-        id:     r.age_group,
-        name:   NAME_MAP[r.age_group],
-        icon:   ICON_MAP[r.age_group],
-        total:  parseInt(r.total),
-        m:      parseInt(r.male_count),
-        f:      parseInt(r.female_count),
-        o:      parseInt(r.other_count),
-        pct:    totalAll > 0 ? parseFloat(((parseInt(r.total) / totalAll) * 100).toFixed(1)) : 0,
+        id:    r.age_group,
+        name:  NAME_MAP[r.age_group],
+        icon:  ICON_MAP[r.age_group],
+        total: parseInt(r.total),
+        m:     parseInt(r.male_count),
+        f:     parseInt(r.female_count),
+        o:     parseInt(r.other_count),
+        pct:   totalAll > 0 ? parseFloat(((parseInt(r.total) / totalAll) * 100).toFixed(1)) : 0,
       })),
     });
   } catch (err) {
@@ -101,17 +167,18 @@ router.get('/demographics', async (req, res) => {
 });
 
 // ─── REVENUE SPLITS ──────────────────────────────────────────────────────────
-// GET /api/dashboard/revenue-splits
+// GET /api/dashboard/revenue-splits?range=
 router.get('/revenue-splits', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const latestDate = `(SELECT MAX(stat_date) FROM revenue_by_demographic)`;
+    const { range } = req.query;
+    const dateCond  = dateSQL(range);
 
     const [demo, cat, src, pay] = await Promise.all([
-      pool.query(`SELECT demo_group AS name, revenue FROM revenue_by_demographic WHERE stat_date = ${latestDate} ORDER BY revenue DESC`),
-      pool.query(`SELECT category   AS name, revenue FROM revenue_by_category    WHERE stat_date = ${latestDate} ORDER BY revenue DESC`),
-      pool.query(`SELECT source_name AS name, revenue FROM revenue_by_source     WHERE stat_date = ${latestDate} ORDER BY revenue DESC`),
-      pool.query(`SELECT payment_mode AS name, revenue FROM revenue_by_payment   WHERE stat_date = ${latestDate} ORDER BY revenue DESC`),
+      pool.query(`SELECT demo_group   AS name, SUM(revenue) AS revenue FROM revenue_by_demographic WHERE ${dateCond} GROUP BY demo_group   ORDER BY revenue DESC`),
+      pool.query(`SELECT category     AS name, SUM(revenue) AS revenue FROM revenue_by_category    WHERE ${dateCond} GROUP BY category     ORDER BY revenue DESC`),
+      pool.query(`SELECT source_name  AS name, SUM(revenue) AS revenue FROM revenue_by_source      WHERE ${dateCond} GROUP BY source_name  ORDER BY revenue DESC`),
+      pool.query(`SELECT payment_mode AS name, SUM(revenue) AS revenue FROM revenue_by_payment     WHERE ${dateCond} GROUP BY payment_mode ORDER BY revenue DESC`),
     ]);
 
     const DEMO_COLORS = { Adult: '#0E7C66', Child: '#5A6BCF', Toddler: '#D89614', Senior: '#8C5BB3' };
@@ -135,14 +202,19 @@ router.get('/revenue-splits', async (req, res) => {
 });
 
 // ─── HOURLY ──────────────────────────────────────────────────────────────────
-// GET /api/dashboard/hourly
+// GET /api/dashboard/hourly?range=
 router.get('/hourly', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
+    const { range } = req.query;
+
     const result = await pool.query(`
-      SELECT hour_of_day, footfall, revenue
+      SELECT hour_of_day,
+             SUM(footfall) AS footfall,
+             SUM(revenue)  AS revenue
       FROM hourly_stats
-      WHERE stat_date = (SELECT MAX(stat_date) FROM hourly_stats)
+      WHERE ${dateSQL(range)}
+      GROUP BY hour_of_day
       ORDER BY hour_of_day ASC
     `);
 
@@ -168,7 +240,6 @@ router.get('/heatmap', async (req, res) => {
       ORDER BY day_of_week, hour_of_day
     `);
 
-    // Build 7×17 matrix
     const matrix = Array.from({ length: 7 }, () => Array(17).fill(0));
     const hours  = Array.from({ length: 17 }, (_, i) => 6 + i);
     for (const r of result.rows) {
@@ -189,18 +260,23 @@ router.get('/heatmap', async (req, res) => {
 });
 
 // ─── WEEKEND vs WEEKDAY ──────────────────────────────────────────────────────
-// GET /api/dashboard/weekend-weekday
+// GET /api/dashboard/weekend-weekday?park=&state=&city=
 router.get('/weekend-weekday', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
+    const { park, state, city } = req.query;
+    const { clauses, params } = parkSQL(park, state, city, 'w.park_id');
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
     const result = await pool.query(`
       SELECT w.park_id, p.name AS park_name, p.color_hex AS color,
              w.weekend_revenue, w.weekday_revenue,
              w.weekend_footfall, w.weekday_footfall
       FROM weekend_weekday w
       JOIN parks p ON p.id = w.park_id
+      ${where}
       ORDER BY w.weekend_revenue DESC
-    `);
+    `, params);
 
     res.json({
       revenue:  result.rows.map(r => ({
@@ -230,16 +306,16 @@ router.get('/comparative', async (req, res) => {
     const [qvq, yvy] = await Promise.all([
       pool.query(`
         SELECT quarter,
-               SUM(CASE WHEN fiscal_year = 2026 THEN revenue ELSE 0 END) AS curr,
-               SUM(CASE WHEN fiscal_year = 2025 THEN revenue ELSE 0 END) AS prev
+               SUM(CASE WHEN fiscal_year = EXTRACT(YEAR FROM NOW())::int     THEN revenue ELSE 0 END) AS curr,
+               SUM(CASE WHEN fiscal_year = EXTRACT(YEAR FROM NOW())::int - 1 THEN revenue ELSE 0 END) AS prev
         FROM quarterly_revenue
         GROUP BY quarter
         ORDER BY quarter
       `),
       pool.query(`
         SELECT month,
-               SUM(CASE WHEN year = 2026 THEN revenue ELSE 0 END) AS curr,
-               SUM(CASE WHEN year = 2025 THEN revenue ELSE 0 END) AS prev
+               SUM(CASE WHEN year = EXTRACT(YEAR FROM NOW())::int     THEN revenue ELSE 0 END) AS curr,
+               SUM(CASE WHEN year = EXTRACT(YEAR FROM NOW())::int - 1 THEN revenue ELSE 0 END) AS prev
         FROM monthly_revenue
         GROUP BY month
         ORDER BY month
@@ -267,17 +343,22 @@ router.get('/comparative', async (req, res) => {
 });
 
 // ─── TOP PARKS ───────────────────────────────────────────────────────────────
-// GET /api/dashboard/top-parks
+// GET /api/dashboard/top-parks?park=&state=&city=
 router.get('/top-parks', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
+    const { park, state, city } = req.query;
+    const { clauses, params } = parkSQL(park, state, city, 't.park_id');
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
     const result = await pool.query(`
       SELECT t.park_id, t.metric_name, t.metric_value,
              p.name AS park_name, p.city, p.state, p.color_hex AS color
       FROM top_parks_metrics t
       JOIN parks p ON p.id = t.park_id
+      ${where}
       ORDER BY t.metric_name, t.metric_value DESC
-    `);
+    `, params);
 
     const metrics = ['Revenue', 'Tickets', 'Footfall', 'Activities', 'F&B'];
     const grouped = {};
@@ -302,24 +383,36 @@ router.get('/top-parks', async (req, res) => {
 });
 
 // ─── REVENUE TREND ───────────────────────────────────────────────────────────
-// GET /api/dashboard/revenue-trend
+// GET /api/dashboard/revenue-trend?park=&state=&city=
 router.get('/revenue-trend', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
+    const { park, state, city } = req.query;
+    const { clauses, params } = parkSQL(park, state, city, 'rt.park_id');
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
     const result = await pool.query(`
       SELECT rt.park_id, p.name AS park_name, p.color_hex AS color,
              rt.year, rt.month, rt.revenue
       FROM revenue_trend rt
       JOIN parks p ON p.id = rt.park_id
+      ${where}
       ORDER BY rt.park_id,
                CASE WHEN rt.year = 2025 AND rt.month = 12 THEN 0
                     ELSE (rt.year - 2026) * 12 + rt.month
                END
-    `);
+    `, params);
 
-    // Build per-park series
+    const MONTH_ABBR    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const seenMonths    = new Set();
+    const derivedMonths = [];
     const parks = {};
     for (const r of result.rows) {
+      const mk = `${r.year}-${String(r.month).padStart(2, '0')}`;
+      if (!seenMonths.has(mk)) {
+        seenMonths.add(mk);
+        derivedMonths.push(MONTH_ABBR[parseInt(r.month) - 1]);
+      }
       if (!parks[r.park_id]) {
         parks[r.park_id] = { parkId: r.park_id, name: r.park_name, color: r.color, series: [] };
       }
@@ -327,7 +420,7 @@ router.get('/revenue-trend', async (req, res) => {
     }
 
     res.json({
-      months: ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'],
+      months: derivedMonths,
       parks:  Object.values(parks),
     });
   } catch (err) {
@@ -341,9 +434,12 @@ router.get('/revenue-trend', async (req, res) => {
 router.get('/parks', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const result = await pool.query(`SELECT id, name, city, state, color_hex AS color FROM parks ORDER BY name`);
+    const result = await pool.query(
+      `SELECT id, name, city, state FROM parks ORDER BY state, city, name`
+    );
     res.json(result.rows);
   } catch (err) {
+    console.error('/parks error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
