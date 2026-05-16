@@ -42,6 +42,7 @@ function qs(filters) {
   if (filters.cities && filters.cities.length > 0) filters.cities.forEach(c => p.append('city', c));
   if (filters.range)   p.set('range',   filters.range);
   if (filters.date)    p.set('date',    filters.date);
+  if (filters.dateEnd) p.set('dateEnd', filters.dateEnd);
   if (filters.compare) p.set('compare', 'true');
   const str = p.toString();
   return str ? `?${str}` : '';

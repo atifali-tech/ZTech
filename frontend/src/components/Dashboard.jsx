@@ -17,7 +17,7 @@ const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2
 
 const DEFAULT_FILTERS = {
   park: 'All Parks', state: 'All States', cities: [],
-  range: 'Last 7 days', date: todayStr, compare: false,
+  range: 'Daily', date: todayStr, dateEnd: todayStr, compare: false,
 };
 
 function ExportMenu({ onExport }) {

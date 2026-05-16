@@ -423,6 +423,72 @@ input, select { font-family: inherit; font-size: inherit; }
   .compare-toggle span:last-of-type { display: none; }
 }
 
+/* ── Date / Range Pickers ──────────────────────────────────────────────────── */
+.picker-wrap { position: relative; }
+.picker-input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; padding: 7px 10px; font-size: 13px; color: var(--ink); font-weight: 500;
+  cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.picker-input:hover { border-color: var(--border-strong); }
+.picker-input.open  { border-color: var(--teal); outline: 2px solid var(--teal-100); }
+.picker-readonly {
+  width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 5px; padding: 7px 10px; font-size: 12.5px; color: var(--ink-3); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.picker-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 100;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15,19,32,.12); padding: 12px; min-width: 240px;
+}
+.picker-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.picker-nav button {
+  width: 28px; height: 28px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink-3); display: grid; place-items: center; font-size: 16px; padding: 0;
+}
+.picker-nav button:hover { background: var(--surface-2); color: var(--ink); }
+.picker-nav .nav-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+
+/* Day calendar */
+.picker-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
+.picker-cal-head { font-size: 10px; font-weight: 700; color: var(--ink-4); text-align: center; padding: 4px 0; letter-spacing: .04em; }
+.picker-cal-cell {
+  aspect-ratio: 1; display: grid; place-items: center; border-radius: 5px;
+  font-size: 12px; font-weight: 500; color: var(--ink-2); cursor: pointer;
+}
+.picker-cal-cell:hover:not(.disabled):not(.empty) { background: var(--teal-50); }
+.picker-cal-cell.selected  { background: var(--teal); color: #fff; }
+.picker-cal-cell.today:not(.selected) { color: var(--teal); font-weight: 700; }
+.picker-cal-cell.disabled  { color: var(--ink-5); cursor: default; }
+.picker-cal-cell.empty     { cursor: default; }
+.picker-cal-cell.other-month { color: var(--ink-5); }
+.picker-today-btn {
+  width: 100%; margin-top: 8px; padding-top: 8px; text-align: center;
+  font-size: 12px; font-weight: 600; color: var(--teal); border: 0; background: transparent; border-top: 1px solid var(--border);
+}
+.picker-today-btn:hover { color: var(--teal-700); }
+
+/* Week picker */
+.picker-cal-head-row { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 2px; }
+.picker-week-rows { display: flex; flex-direction: column; gap: 1px; }
+.picker-week-row  { display: grid; grid-template-columns: repeat(7, 1fr); border-radius: 5px; cursor: pointer; }
+.picker-week-row:hover:not(.disabled) { background: var(--teal-50); }
+.picker-week-row.selected  { background: var(--teal-100); }
+.picker-week-row.disabled  { cursor: default; opacity: .4; }
+
+/* Month / Quarter / Year grids */
+.picker-grid-3x4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.picker-grid-btn {
+  padding: 8px 4px; text-align: center; border-radius: 5px; font-size: 12.5px; font-weight: 500;
+  color: var(--ink-2); cursor: pointer; border: 1px solid transparent; background: transparent;
+}
+.picker-grid-btn:hover:not(.disabled) { background: var(--teal-50); border-color: var(--teal-100); }
+.picker-grid-btn.selected   { background: var(--teal); color: #fff; border-color: var(--teal-700); }
+.picker-grid-btn.disabled   { color: var(--ink-5); cursor: default; }
+.picker-grid-btn.current:not(.selected) { color: var(--teal); font-weight: 700; }
+.picker-grid-btn.out-decade { color: var(--ink-5); }
+
 /* Extra small — phones (< 600px) */
 @media (max-width: 599px) {
   /* KPI values smaller */
