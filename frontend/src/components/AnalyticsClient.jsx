@@ -10,6 +10,7 @@ const DEFAULT_FILTERS = {
   range: 'Monthly', date: todayStr, dateEnd: todayStr, compare: false,
 };
 import FilterBar from './FilterBar';
+import HourlyChart from './HourlyChart';
 import DemographicsSection from './Demographics';
 import RevenueSplits from './RevenueSplits';
 import Heatmap from './Heatmap';
@@ -263,6 +264,7 @@ export default function AnalyticsClient({
   const [weekendWeekday, setWeekendWeekday] = useState(initWeekendWeekday);
   const [comparative,    setComparative]    = useState(initComparative);
   const [topParks,       setTopParks]       = useState(initTopParks);
+  const [hourly,         setHourly]         = useState(null);
 
   const [tab,       setTab]       = useState('Footfall');
   const [filters,   setFilters]   = useState(DEFAULT_FILTERS);
@@ -273,13 +275,14 @@ export default function AnalyticsClient({
   const fetchData = async (f) => {
     setLoading(true);
     try {
-      const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
+      const [r0, r1, r2, r3, r4, r5, r6] = await Promise.allSettled([
         api.demographics(f),
         api.revenueSplits(f),
         api.heatmap(f),
         api.weekendWeekday(f),
         api.comparative(f),
         api.topParks(f),
+        api.hourly(f),
       ]);
       if (r0.status === 'fulfilled') setDemographics(r0.value);
       if (r1.status === 'fulfilled') setRevenueSplits(r1.value);
@@ -287,6 +290,7 @@ export default function AnalyticsClient({
       if (r3.status === 'fulfilled') setWeekendWeekday(r3.value);
       if (r4.status === 'fulfilled') setComparative(r4.value);
       if (r5.status === 'fulfilled') setTopParks(r5.value);
+      if (r6.status === 'fulfilled') setHourly(r6.value);
     } finally {
       setLoading(false);
     }
@@ -361,6 +365,7 @@ export default function AnalyticsClient({
 
         {/* ── FOOTFALL ─────────────────────────────────────── */}
         {tab === 'Footfall' && <>
+          <HourlyChart data={hourly} appliedFilters={filters}/>
           {isChart('wwd-footfall')
             ? <WeekendWeekday data={weekendWeekday} view="footfall"
                 headerExtra={mkCtrl('wwd-footfall', () => csvWwdFootfall(weekendWeekday))}/>

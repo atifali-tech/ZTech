@@ -1,8 +1,8 @@
 'use client';
 import { inr } from '../lib/format';
-import { Section } from './Primitives';
+import { Section, Delta } from './Primitives';
 
-export default function TopPerformingParks({ parks = [], dateLabel = '' }) {
+export default function TopPerformingParks({ parks = [], dateLabel = '', compare = false }) {
   const max = Math.max(...parks.map(p => p.revenue), 1);
 
   return (
@@ -12,29 +12,30 @@ export default function TopPerformingParks({ parks = [], dateLabel = '' }) {
     >
       {parks.length === 0 ? (
         <div style={{ color: 'var(--ink-4)', fontSize: 12 }}>No data for this period</div>
-      ) : (
-        parks.map((park, i) => (
-          <div key={park.parkId} style={{
-            display: 'grid',
-            gridTemplateColumns: '28px 12px 1fr 200px 90px 64px',
-            alignItems: 'center',
-            gap: 10,
-            padding: '7px 0',
-            borderBottom: i < parks.length - 1 ? '1px solid var(--border)' : 'none',
-          }}>
-            {/* Rank */}
-            <span style={{
-              fontSize: 12, fontWeight: 700, color: 'var(--ink-4)',
-              fontFamily: "'JetBrains Mono', monospace", textAlign: 'right',
+      ) : (<>
+        {/* Column headers */}
+        <div className="tpp-row" style={{
+          paddingBottom: 6, borderBottom: '1px solid var(--border)', marginBottom: 2,
+          gridTemplateColumns: compare ? undefined : '28px 12px minmax(80px,160px) 1fr 90px',
+        }}>
+          <span/><span/>
+          <span className="col-hdr">Park</span>
+          <span/>
+          <span className="col-hdr" style={{ textAlign: 'right' }}>Revenue</span>
+          {compare && <span className="col-hdr" style={{ textAlign: 'right' }}>Trend</span>}
+        </div>
+        {parks.map((park, i) => (
+          <div key={park.parkId} className="tpp-row"
+            style={{
+              borderBottom: i < parks.length - 1 ? '1px solid var(--border)' : 'none',
+              gridTemplateColumns: compare ? undefined : '28px 12px minmax(80px,160px) 1fr 90px',
             }}>
-              {i + 1}
-            </span>
+
+            {/* Rank */}
+            <span className="tpp-rank">{i + 1}</span>
 
             {/* Dot */}
-            <span style={{
-              width: 10, height: 10, borderRadius: '50%',
-              background: park.color, display: 'inline-block', flexShrink: 0,
-            }}/>
+            <span className="tpp-dot" style={{ background: park.color }}/>
 
             {/* Name + city */}
             <div style={{ minWidth: 0 }}>
@@ -46,37 +47,28 @@ export default function TopPerformingParks({ parks = [], dateLabel = '' }) {
             </div>
 
             {/* Bar */}
-            <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+            <div className="tpp-bar-track">
               <div style={{
                 height: '100%', borderRadius: 3,
                 width: (park.revenue / max * 100) + '%',
-                background: park.color,
-                transition: 'width .3s ease',
+                background: park.color, transition: 'width .3s ease',
               }}/>
             </div>
 
             {/* Revenue */}
-            <span style={{
-              fontSize: 13, fontWeight: 700, color: 'var(--ink)',
-              fontFamily: "'JetBrains Mono', monospace", textAlign: 'right',
-            }}>
-              {inr(park.revenue)}
-            </span>
+            <span className="tpp-rev">{inr(park.revenue)}</span>
 
-            {/* Trend */}
-            {park.trend != null ? (
-              <span style={{
-                fontSize: 11, fontWeight: 600, textAlign: 'right',
-                color: park.trend >= 0 ? 'var(--teal)' : 'var(--red)',
-              }}>
-                {park.trend >= 0 ? '↑' : '↓'} {Math.abs(park.trend)}%
+            {/* Trend — only when compare is active */}
+            {compare && (
+              <span className="tpp-trend">
+                {park.trend != null
+                  ? <Delta value={park.trend}/>
+                  : <span style={{ fontSize: 11, color: 'var(--ink-5)' }}>—</span>}
               </span>
-            ) : (
-              <span/>
             )}
           </div>
-        ))
-      )}
+        ))}
+      </>)}
     </Section>
   );
 }

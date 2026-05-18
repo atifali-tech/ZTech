@@ -1,6 +1,9 @@
 'use client';
 import DonutChart from './DonutChart';
 import { inr } from '../lib/format';
+import { Delta } from './Primitives';
+
+const pct = (curr, prev) => prev > 0 ? parseFloat(((curr - prev) / prev * 100).toFixed(1)) : null;
 
 const CAT_COLORS = { Tickets: '#1D9E75', 'F&B': '#E24B4A', Activities: '#378ADD', Parking: '#EF9F27' };
 const PMT_COLORS = { UPI: '#378ADD', Cash: '#1D9E75', Card: '#7F77DD', Others: '#EF9F27' };
@@ -102,7 +105,7 @@ const RPC_CSS = `
   }
 `;
 
-export default function RevenuePieCard({ title, items = [], colorMap = {} }) {
+export default function RevenuePieCard({ title, items = [], colorMap = {}, compare = false }) {
   const mapped = items.filter(i => i.value > 0).map(i => ({ ...i, color: colorMap[i.name] || i.color }));
   const total  = mapped.reduce((s, i) => s + i.value, 0);
 
@@ -122,15 +125,19 @@ export default function RevenuePieCard({ title, items = [], colorMap = {} }) {
                 <DonutChart items={mapped} total={total} size={200}/>
               </div>
               <div className="rpc-legend">
-                {mapped.map(i => (
-                  <div key={i.name} className="rpc-item">
-                    <span className="rpc-dot" style={{ background: i.color }}/>
-                    <span className="rpc-text" title={i.name === 'Others' ? 'Split' : i.name}>
-                      <span className="rpc-name">{i.name === 'Others' ? 'Split' : i.name}: </span>
-                      <span className="rpc-val">{inr(i.value)}</span>
-                    </span>
-                  </div>
-                ))}
+                {mapped.map(i => {
+                  const delta = (compare && i.prevValue != null) ? pct(i.value, i.prevValue) : null;
+                  return (
+                    <div key={i.name} className="rpc-item">
+                      <span className="rpc-dot" style={{ background: i.color }}/>
+                      <span className="rpc-text" title={i.name === 'Others' ? 'Split' : i.name}>
+                        <span className="rpc-name">{i.name === 'Others' ? 'Split' : i.name}: </span>
+                        <span className="rpc-val">{inr(i.value)}</span>
+                      </span>
+                      {delta != null && <Delta value={delta}/>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

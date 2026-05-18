@@ -47,10 +47,9 @@ function ExportMenu({ onExport }) {
   );
 }
 
-export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSplits, hourly: initHourly, topParks: initTopParks }) {
+export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSplits, topParks: initTopParks }) {
   const [kpis,           setKpis]          = useState(initKpis);
   const [revenueSplits,  setRevenueSplits] = useState(initRevenueSplits);
-  const [hourly,         setHourly]        = useState(initHourly);
   const [topParks,       setTopParks]      = useState(initTopParks);
   const [busiestByPark,  setBusiestByPark]  = useState([]);
   const [topParksRev,    setTopParksRev]    = useState([]);
@@ -68,20 +67,18 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
   const fetchData = async (f) => {
     setLoading(true);
     try {
-      const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
+      const [r0, r1, r2, r3, r4] = await Promise.allSettled([
         api.kpis(f),
         api.revenueSplits(f),
-        api.hourly(f),
         api.topParks(f),
         api.busiestByPark(f),
         api.topParksRevenue(f),
       ]);
       if (r0.status === 'fulfilled') setKpis(r0.value);
       if (r1.status === 'fulfilled') setRevenueSplits(r1.value);
-      if (r2.status === 'fulfilled') setHourly(r2.value);
-      if (r3.status === 'fulfilled') setTopParks(r3.value);
-      if (r4.status === 'fulfilled') setBusiestByPark(r4.value);
-      if (r5.status === 'fulfilled') setTopParksRev(r5.value);
+      if (r2.status === 'fulfilled') setTopParks(r2.value);
+      if (r3.status === 'fulfilled') setBusiestByPark(r3.value);
+      if (r4.status === 'fulfilled') setTopParksRev(r4.value);
     } finally {
       setLoading(false);
     }
@@ -139,7 +136,7 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
               const catTotal = (revenueSplits?.byCategory || []).reduce((s, c) => s + c.value, 0);
               const comparing = kpis?.deltaLabel != null;
               return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <div className="kpi-grid">
                   <KpiCard
                     label="Total Revenue" icon="chart"
                     value={inrFull(catTotal || kpis?.totalRevenue || 0)}
@@ -175,31 +172,32 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
             })()}
 
             {/* ROW 2 — 2 pie charts side by side */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="grid-2col">
               <RevenuePieCard
                 title="Revenue by Category"
                 items={revenueSplits?.byCategory || []}
                 colorMap={COLOR_MAPS.category}
+                compare={appliedFilters.compare}
               />
               <RevenuePieCard
                 title="Revenue by Payment Mode"
                 items={revenueSplits?.byPayment || []}
                 colorMap={COLOR_MAPS.payment}
+                compare={appliedFilters.compare}
               />
             </div>
 
-            {/* ROW 3 — Busiest Hours + Hourly Chart */}
-            <BusiestHoursCard
-              kpis={kpis}
-              busiestByPark={busiestByPark}
-              hourly={hourly}
-              appliedFilters={appliedFilters}
-            />
-
-            {/* ROW 4 — Top Performing Parks */}
+            {/* ROW 3 — Top Performing Parks */}
             <TopPerformingParks
               parks={topParksRev}
               dateLabel={appliedFilters.range}
+              compare={appliedFilters.compare}
+            />
+
+            {/* ROW 4 — Busiest Hours by Park */}
+            <BusiestHoursCard
+              busiestByPark={busiestByPark}
+              appliedFilters={appliedFilters}
             />
           </div>
 

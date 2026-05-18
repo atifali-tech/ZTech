@@ -228,7 +228,9 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 .btn-sm { height: 28px; padding: 0 9px; font-size: 11.5px; }
 
 /* Section */
-.sec { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; overflow: hidden; min-width: 0; height: 100%; box-sizing: border-box; }
+.sec { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; overflow: hidden; min-width: 0; height: auto; box-sizing: border-box; }
+/* stretch cards to equal height only inside grid rows */
+.kpi-grid .sec, .grid-2col .sec { height: 100%; }
 .sec-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; overflow: hidden; }
 .sec-title { font-weight: 600; font-size: 13px; color: var(--ink); letter-spacing: -0.1px; white-space: nowrap; }
 .sec-sub { font-size: 11px; color: var(--ink-4); margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -400,6 +402,23 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 /* Two-column responsive row */
 .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* KPI 3-column grid */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+/* Top Performing Parks rows */
+.tpp-row { display: grid; grid-template-columns: 28px 12px minmax(80px,160px) 1fr 90px 64px; align-items: center; gap: 10px; padding: 7px 0; }
+.tpp-rank { font-size: 12px; font-weight: 700; color: var(--ink-4); font-family: 'JetBrains Mono', monospace; text-align: right; }
+.tpp-dot  { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.tpp-bar-track { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.tpp-rev  { font-size: 13px; font-weight: 700; color: var(--ink); font-family: 'JetBrains Mono', monospace; text-align: right; }
+.tpp-trend { font-size: 11px; font-weight: 600; text-align: right; }
+
+/* Busiest Hours park rows */
+.bh-park-row { display: grid; grid-template-columns: minmax(80px,180px) 72px 1fr 110px; align-items: center; gap: 10px; padding: 3px 0; }
+
+/* Column header utility (shared by tpp and bh) */
+.col-hdr { font-size: 10px; font-weight: 600; color: var(--ink-4); letter-spacing: 0.06em; text-transform: uppercase; }
+
 /* Revenue + KPI layout */
 .rev-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; grid-template-rows: auto auto; gap: 12px; }
 .rev-main    { grid-column: 1; grid-row: 1 / 3; }
@@ -474,6 +493,20 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
   /* Filterbar: wrap tighter */
   .filter { min-width: 120px; }
   .compare-toggle span:last-of-type { display: none; }
+
+  /* KPI cards: 1 per row */
+  .kpi-grid { grid-template-columns: 1fr; }
+
+  /* Pie charts: stack */
+  .grid-2col { grid-template-columns: 1fr; }
+
+  /* Top Performing Parks: hide bar column, tighten */
+  .tpp-row { grid-template-columns: 24px 10px minmax(60px,120px) 1fr 70px 52px; }
+  .tpp-bar-track { display: none; }
+
+  /* Busiest Hours park rows: hide bar, tighten */
+  .bh-park-row { grid-template-columns: 1fr 60px 80px; }
+  .bh-park-row > :nth-child(3) { display: none; } /* bar track */
 }
 
 /* ── Date / Range Pickers ──────────────────────────────────────────────────── */

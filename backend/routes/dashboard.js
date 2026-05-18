@@ -322,7 +322,7 @@ router.get('/demographics', async (req, res) => {
 router.get('/revenue-splits', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { park, state, range, date, dateEnd } = req.query; const cities = extractCities(req.query.city);
+    const { park, state, range, date, dateEnd, compare } = req.query; const cities = extractCities(req.query.city);
     const { clauses: ticketParkClauses, params } = parkSQL(park, state, cities, 't.park_id');
     const { clauses: revenueParkClauses } = parkSQL(park, state, cities, 'rc.park_id');
     const ticketWhere  = `${dateSQL(range, date, dateEnd, 'DATE(t.created_at)')} ${ticketParkClauses.length ? `AND ${ticketParkClauses.join(' AND ')}` : ''}`;
@@ -374,14 +374,53 @@ router.get('/revenue-splits', async (req, res) => {
     const SRC_COLORS  = { Counter: '#0E7C66', Web: '#5A6BCF', WhatsApp: '#D89614' };
     const PAY_COLORS  = { UPI: '#0E7C66', Cash: '#5A6BCF', Card: '#D89614', Others: '#8A92A3' };
 
-    const addColors = (rows, colorMap) =>
-      rows.map(r => ({ name: r.name, value: parseFloat(r.revenue), color: colorMap[r.name] || '#ccc' }));
+    const addColors = (rows, colorMap, prevMap = null) =>
+      rows.map(r => ({
+        name:      r.name,
+        value:     parseFloat(r.revenue),
+        color:     colorMap[r.name] || '#ccc',
+        prevValue: prevMap ? (prevMap[r.name] ?? null) : undefined,
+      }));
+
+    // Previous-period breakdown — only when compare=true
+    let prevCatMap = null, prevPayMap = null;
+    if (compare === 'true') {
+      const prevTicketWhere  = `${prevDateSQL(range, date, dateEnd, 'DATE(t.created_at)')} ${ticketParkClauses.length ? `AND ${ticketParkClauses.join(' AND ')}` : ''}`;
+      const prevRevenueWhere = `${prevDateSQL(range, date, dateEnd, 'rc.date')} ${revenueParkClauses.length ? `AND ${revenueParkClauses.join(' AND ')}` : ''}`;
+
+      const [prevCat, prevPay] = await Promise.all([
+        pool.query(`
+          SELECT name, SUM(revenue) AS revenue
+          FROM (
+            SELECT 'Tickets' AS name, SUM(t.total_amount) AS revenue
+            FROM tickets t
+            WHERE ${prevTicketWhere}
+            UNION ALL
+            SELECT TRIM(rc.category) AS name, SUM(rc.amount) AS revenue
+            FROM revenue_categories rc
+            WHERE ${prevRevenueWhere}
+            GROUP BY 1
+          ) s
+          GROUP BY 1
+        `, params),
+        pool.query(`
+          SELECT CASE TRIM(t.payment_mode) WHEN 'Split' THEN 'Others' ELSE TRIM(t.payment_mode) END AS name,
+                 SUM(t.total_amount) AS revenue
+          FROM tickets t
+          WHERE ${prevTicketWhere}
+          GROUP BY 1
+        `, params),
+      ]);
+
+      prevCatMap = Object.fromEntries(prevCat.rows.map(r => [r.name, parseFloat(r.revenue)]));
+      prevPayMap = Object.fromEntries(prevPay.rows.map(r => [r.name, parseFloat(r.revenue)]));
+    }
 
     res.json({
       byDemographic: addColors(demo.rows, DEMO_COLORS),
-      byCategory:    addColors(cat.rows,  CAT_COLORS),
+      byCategory:    addColors(cat.rows,  CAT_COLORS, prevCatMap),
       bySource:      addColors(src.rows,  SRC_COLORS),
-      byPayment:     addColors(pay.rows,  PAY_COLORS),
+      byPayment:     addColors(pay.rows,  PAY_COLORS, prevPayMap),
     });
   } catch (err) {
     console.error('/revenue-splits error:', err.message);
@@ -391,6 +430,9 @@ router.get('/revenue-splits', async (req, res) => {
 
 // ─── HOURLY ──────────────────────────────────────────────────────────────────
 // GET /api/dashboard/hourly?range=
+// Returns { mode: 'hourly'|'trend', labels: string[], footfall: int[], revenue: float[] }
+// mode='hourly'  → Daily range, one slot per hour 10AM–7PM, actual counts
+// mode='trend'   → Weekly/Monthly → one point per day; Quarterly+ → one point per week
 router.get('/hourly', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
@@ -398,47 +440,71 @@ router.get('/hourly', async (req, res) => {
     const cities = extractCities(req.query.city);
     const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
 
-    const d  = /^\d{4}-\d{2}-\d{2}$/.test(date    || '') ? new Date(date)    : new Date();
-    const de = /^\d{4}-\d{2}-\d{2}$/.test(dateEnd  || '') ? new Date(dateEnd) : new Date();
-    let daysInPeriod;
-    switch (range) {
-      case 'Daily':          daysInPeriod = 1;   break;
-      case 'Weekly':         daysInPeriod = 7;   break;
-      case 'Quarterly':      daysInPeriod = 91;  break;
-      case 'Yearly':         daysInPeriod = 365; break;
-      case 'Last 3 Months':  daysInPeriod = 90;  break;
-      case 'Last 6 Months':  daysInPeriod = 180; break;
-      case 'Last 12 Months': daysInPeriod = 365; break;
-      default: daysInPeriod = Math.max(1, Math.round((de - d) / 86400000) + 1);
-    }
-
     const dateWhere = dateSQL(range, date, dateEnd, 'DATE(created_at)');
     const parkWhere = parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : '';
 
-    const result = await pool.query(`
-      WITH raw AS (
-        SELECT EXTRACT(HOUR FROM created_at)::int AS hour,
-               SUM(quantity)::numeric             AS footfall,
-               SUM(total_amount)::numeric         AS revenue
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const fmtDate = (d) => { const dt = new Date(d); return MONTHS[dt.getMonth()] + ' ' + dt.getDate(); };
+    const fmtHour = (h) => { const h12 = h % 12 || 12; return `${h12}${h < 12 ? 'AM' : 'PM'}`; };
+
+    const isLong = ['Quarterly','Yearly','Last 3 Months','Last 6 Months','Last 12 Months'].includes(range);
+
+    let result, mode, labels, footfall, revenue;
+
+    if (range === 'Daily') {
+      mode = 'hourly';
+      result = await pool.query(`
+        WITH raw AS (
+          SELECT EXTRACT(HOUR FROM created_at)::int AS hour,
+                 SUM(quantity)::int                  AS footfall,
+                 ROUND(SUM(total_amount), 2)          AS revenue
+          FROM tickets
+          WHERE ${dateWhere} ${parkWhere}
+          GROUP BY 1
+        ),
+        slots AS (SELECT generate_series(10, 19) AS hour)
+        SELECT s.hour,
+               COALESCE(r.footfall, 0)::int AS footfall,
+               COALESCE(r.revenue,  0)      AS revenue
+        FROM slots s LEFT JOIN raw r ON r.hour = s.hour
+        ORDER BY s.hour
+      `, params);
+      labels   = result.rows.map(r => fmtHour(parseInt(r.hour)));
+      footfall = result.rows.map(r => parseInt(r.footfall));
+      revenue  = result.rows.map(r => parseFloat(r.revenue));
+
+    } else if (isLong) {
+      mode = 'trend';
+      result = await pool.query(`
+        SELECT DATE_TRUNC('week', created_at)::date AS period,
+               SUM(quantity)::int                    AS footfall,
+               ROUND(SUM(total_amount), 2)            AS revenue
         FROM tickets
         WHERE ${dateWhere} ${parkWhere}
         GROUP BY 1
-      ),
-      slots AS (SELECT generate_series(10, 19) AS hour)
-      SELECT s.hour,
-             COALESCE(ROUND(r.footfall / $${params.length + 1}::numeric), 0)::int AS footfall,
-             COALESCE(ROUND(r.revenue / $${params.length + 1}::numeric, 2), 0)      AS revenue
-      FROM slots s LEFT JOIN raw r ON r.hour = s.hour
-      ORDER BY s.hour
-    `, [...params, daysInPeriod]);
+        ORDER BY 1
+      `, params);
+      labels   = result.rows.map(r => fmtDate(r.period));
+      footfall = result.rows.map(r => parseInt(r.footfall));
+      revenue  = result.rows.map(r => parseFloat(r.revenue));
 
-    res.json({
-      hours:       result.rows.map(r => parseInt(r.hour)),
-      footfall:    result.rows.map(r => parseInt(r.footfall)),
-      revenue:     result.rows.map(r => parseFloat(r.revenue)),
-      isAverage:   daysInPeriod > 1,
-      daysInPeriod,
-    });
+    } else {
+      mode = 'trend';
+      result = await pool.query(`
+        SELECT DATE(created_at) AS period,
+               SUM(quantity)::int AS footfall,
+               ROUND(SUM(total_amount), 2) AS revenue
+        FROM tickets
+        WHERE ${dateWhere} ${parkWhere}
+        GROUP BY 1
+        ORDER BY 1
+      `, params);
+      labels   = result.rows.map(r => fmtDate(r.period));
+      footfall = result.rows.map(r => parseInt(r.footfall));
+      revenue  = result.rows.map(r => parseFloat(r.revenue));
+    }
+
+    res.json({ mode, labels, footfall, revenue });
   } catch (err) {
     console.error('/hourly error:', err.message);
     res.status(500).json({ error: err.message });
@@ -447,54 +513,89 @@ router.get('/hourly', async (req, res) => {
 
 // ─── BUSIEST HOUR BY PARK ────────────────────────────────────────────────────
 // GET /api/dashboard/busiest-by-park
+// Returns busiest window (start→end) per park using 40% peak threshold.
 router.get('/busiest-by-park', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { park, state, range, date, dateEnd } = req.query;
+    const { park, state, range, date, dateEnd, compare } = req.query;
     const cities = extractCities(req.query.city);
     const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id');
     const dateWhere = dateSQL(range, date, dateEnd, 'DATE(t.created_at)');
     const where = `${dateWhere}${parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : ''}`;
 
+    // Fetch all hourly counts per park so we can compute the window in JS
     const result = await pool.query(`
-      WITH hourly AS (
-        SELECT t.park_id,
-               EXTRACT(HOUR FROM t.created_at)::int AS hour,
-               COUNT(DISTINCT t.ticket_id)::int      AS ticket_count,
-               SUM(t.total_amount)                   AS revenue
-        FROM tickets t
-        WHERE ${where}
-        GROUP BY t.park_id, EXTRACT(HOUR FROM t.created_at)
-      ),
-      ranked AS (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY park_id ORDER BY ticket_count DESC) AS rn
-        FROM hourly
-      ),
-      days AS (
-        SELECT COUNT(DISTINCT DATE(t.created_at)) AS days_in_period
-        FROM tickets t
-        WHERE ${where}
-      )
-      SELECT r.park_id, r.hour AS peak_hour, r.ticket_count, r.revenue::numeric,
-             p.name AS park_name, p.city, p.color_hex AS color,
-             d.days_in_period
-      FROM ranked r
-      JOIN parks p ON p.id = r.park_id
-      CROSS JOIN days d
-      WHERE r.rn = 1
-      ORDER BY r.ticket_count DESC
+      SELECT t.park_id,
+             EXTRACT(HOUR FROM t.created_at)::int AS hour,
+             COUNT(DISTINCT t.ticket_id)::int      AS ticket_count,
+             SUM(t.total_amount)::numeric          AS revenue,
+             p.name AS park_name, p.city, p.color_hex AS color
+      FROM tickets t
+      JOIN parks p ON p.id = t.park_id
+      WHERE ${where}
+      GROUP BY t.park_id, p.name, p.city, p.color_hex, EXTRACT(HOUR FROM t.created_at)
+      ORDER BY t.park_id, hour
     `, params);
 
-    res.json(result.rows.map(r => ({
-      parkId:       r.park_id,
-      parkName:     r.park_name,
-      city:         r.city,
-      color:        r.color,
-      peakHour:     parseInt(r.peak_hour),
-      ticketCount:  parseInt(r.ticket_count),
-      revenue:      parseFloat(r.revenue),
-      daysInPeriod: parseInt(r.days_in_period),
-    })));
+    // Group by park
+    const byPark = new Map();
+    for (const r of result.rows) {
+      const pid = r.park_id;
+      if (!byPark.has(pid)) {
+        byPark.set(pid, { parkId: pid, parkName: r.park_name, city: r.city, color: r.color, hours: {} });
+      }
+      byPark.get(pid).hours[parseInt(r.hour)] = {
+        ticketCount: parseInt(r.ticket_count),
+        revenue:     parseFloat(r.revenue),
+      };
+    }
+
+    // Compute busiest window using 40% threshold — walk left/right from peak
+    function computeWindow(hours) {
+      const entries = Object.entries(hours).map(([h, d]) => ({ hour: parseInt(h), ...d }));
+      if (!entries.length) return null;
+      const peak      = entries.reduce((best, curr) => curr.ticketCount > best.ticketCount ? curr : best);
+      const threshold = peak.ticketCount * 0.4;
+      let startHour = peak.hour, endHour = peak.hour;
+      for (let h = peak.hour - 1; h >= 6;  h--) { if (hours[h]?.ticketCount >= threshold) startHour = h; else break; }
+      for (let h = peak.hour + 1; h <= 23; h++) { if (hours[h]?.ticketCount >= threshold) endHour   = h; else break; }
+      return { peakHour: peak.hour, ticketCount: peak.ticketCount, revenue: peak.revenue, startHour, endHour };
+    }
+
+    // Previous-period total tickets per park — for trend %
+    let prevByPark = {};
+    if (compare === 'true') {
+      const prevWhere = `${prevDateSQL(range, date, dateEnd, 'DATE(t.created_at)')}${parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : ''}`;
+      const prevResult = await pool.query(`
+        SELECT t.park_id, COUNT(DISTINCT t.ticket_id)::int AS ticket_count
+        FROM tickets t
+        WHERE ${prevWhere}
+        GROUP BY t.park_id
+      `, params);
+      for (const r of prevResult.rows) prevByPark[r.park_id] = parseInt(r.ticket_count);
+    }
+
+    const out = [];
+    for (const [pid, p] of byPark) {
+      const win = computeWindow(p.hours);
+      if (!win) continue;
+      const totalCurrent = Object.values(p.hours).reduce((s, h) => s + h.ticketCount, 0);
+      out.push({
+        parkId:      pid,
+        parkName:    p.parkName,
+        city:        p.city,
+        color:       p.color,
+        peakHour:    win.peakHour,
+        startHour:   win.startHour,
+        endHour:     win.endHour,
+        ticketCount: win.ticketCount,
+        revenue:     win.revenue,
+        trend:       compare === 'true' ? pct(totalCurrent, prevByPark[pid] || 0) : null,
+      });
+    }
+    out.sort((a, b) => b.ticketCount - a.ticketCount);
+
+    res.json(out);
   } catch (err) {
     console.error('/busiest-by-park error:', err.message);
     res.status(500).json({ error: err.message });

@@ -201,7 +201,12 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
       <button className={`compare-toggle${filters.compare?' on':''}`}
         onClick={()=>setFilters(f=>({...f,compare:!f.compare}))}>
         <span className="switch"/>
-        Compare to <span className="mono" style={{color:'var(--ink-3)',fontStyle:'normal'}}>Prev. Period</span>
+        vs. <span className="mono" style={{color:'var(--ink-3)',fontStyle:'normal'}}>{
+          ({ Daily: 'Yesterday', Weekly: 'Prev. Week', Monthly: 'Prev. Month',
+             Quarterly: 'Prev. Quarter', Yearly: 'Prev. Year',
+             'Last 3 Months': 'Prev. 3 Months', 'Last 6 Months': 'Prev. 6 Months',
+             'Last 12 Months': 'Prev. 12 Months' })[filters.range] || 'Prev. Period'
+        }</span>
       </button>
 
       <button className="btn btn-ghost" onClick={onReset}>Reset</button>
