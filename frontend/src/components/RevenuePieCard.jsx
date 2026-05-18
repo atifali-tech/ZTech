@@ -1,6 +1,6 @@
 'use client';
 import DonutChart from './DonutChart';
-import { inr } from '../lib/format';
+import { inr, prevPeriodLabel } from '../lib/format';
 import { Delta } from './Primitives';
 
 const pct = (curr, prev) => prev > 0 ? parseFloat(((curr - prev) / prev * 100).toFixed(1)) : null;
@@ -105,7 +105,7 @@ const RPC_CSS = `
   }
 `;
 
-export default function RevenuePieCard({ title, items = [], colorMap = {}, compare = false }) {
+export default function RevenuePieCard({ title, items = [], colorMap = {}, compare = false, range = '', date = '', dateEnd = '' }) {
   const mapped = items.filter(i => i.value > 0).map(i => ({ ...i, color: colorMap[i.name] || i.color }));
   const total  = mapped.reduce((s, i) => s + i.value, 0);
 
@@ -113,6 +113,7 @@ export default function RevenuePieCard({ title, items = [], colorMap = {}, compa
     <div className="sec">
       <div className="sec-head">
         <div className="sec-title">{title}</div>
+        {compare && <div className="sec-sub" style={{ marginLeft: 0 }}>{prevPeriodLabel(range, date, dateEnd)}</div>}
       </div>
       <div className="sec-body" style={{ justifyContent: 'center' }}>
         {!mapped.length ? (

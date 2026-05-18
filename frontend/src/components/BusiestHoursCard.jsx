@@ -1,5 +1,5 @@
 'use client';
-import { num, inr } from '../lib/format';
+import { num, inr, prevPeriodLabel } from '../lib/format';
 import { Section, Delta } from './Primitives';
 
 function fmtHour(h) {
@@ -18,7 +18,7 @@ export default function BusiestHoursCard({ busiestByPark = [], appliedFilters })
   const max          = Math.max(...busiestByPark.map(p => p.ticketCount), 1);
 
   const title = isSinglePark ? `Busiest Window · ${appliedFilters.park}` : 'Busiest Hours by Park';
-  const sub   = 'by peak ticket window';
+  const sub   = compare ? prevPeriodLabel(appliedFilters?.range, appliedFilters?.date, appliedFilters?.dateEnd) : '';
 
   const gridCols = compare
     ? 'minmax(80px,180px) 90px 1fr 110px 64px'
@@ -90,7 +90,7 @@ export default function BusiestHoursCard({ busiestByPark = [], appliedFilters })
                   {num(park.ticketCount)} tickets
                 </span>
                 {compare && (
-                  <span style={{ textAlign: 'right' }}>
+                  <span className="tpp-trend">
                     {park.trend != null
                       ? <Delta value={park.trend}/>
                       : <span style={{ fontSize: 11, color: 'var(--ink-5)' }}>—</span>}

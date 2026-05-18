@@ -123,8 +123,10 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
   };
 
   const onReset = () => {
-    const { date, dateEnd } = computeDefaultDates('Daily');
-    setFilters(f=>({park:'All Parks',state:'All States',cities:[],range:'Daily',date,dateEnd,compare:f.compare}));
+    const { date, dateEnd } = computeDefaultDates('Monthly');
+    const resetF = { park: 'All Parks', state: 'All States', cities: [], range: 'Monthly', date, dateEnd, compare: filters.compare };
+    setFilters(() => resetF);
+    onApply(resetF);
   };
 
   const isRolling = ['Last 3 Months','Last 6 Months','Last 12 Months'].includes(filters.range);
@@ -202,16 +204,16 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
         onClick={()=>setFilters(f=>({...f,compare:!f.compare}))}>
         <span className="switch"/>
         vs. <span className="mono" style={{color:'var(--ink-3)',fontStyle:'normal'}}>{
-          ({ Daily: 'Yesterday', Weekly: 'Prev. Week', Monthly: 'Prev. Month',
-             Quarterly: 'Prev. Quarter', Yearly: 'Prev. Year',
+          ({ Daily: 'Yesterday', Weekly: 'Previous Week', Monthly: 'Previous Month',
+             Quarterly: 'Previous Quarter', Yearly: 'Previous Year',
              'Last 3 Months': 'Prev. 3 Months', 'Last 6 Months': 'Prev. 6 Months',
-             'Last 12 Months': 'Prev. 12 Months' })[filters.range] || 'Prev. Period'
+             'Last 12 Months': 'Prev. 12 Months' })[filters.range] || 'Previous Period'
         }</span>
       </button>
 
       <button className="btn btn-ghost" onClick={onReset}>Reset</button>
 
-      <button className="btn btn-primary" onClick={onApply}>
+      <button className="btn btn-primary" onClick={() => onApply()}>
         <Icon name="filter" size={13} color="#fff"/> Apply
       </button>
 

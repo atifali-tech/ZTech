@@ -131,8 +131,7 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
   border: 1px solid var(--sidebar-line); box-shadow: 0 4px 16px rgba(0,0,0,.35);
 }
 
-/* Hide toggle on medium screens — already icon-only via media query */
-@media (max-width: 1199px) { .sb-toggle { display: none; } }
+
 
 .avatar {
   width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #0E7C66, #5A6BCF);
@@ -182,6 +181,16 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 }
 
 /* Filterbar */
+.filter-sticky {
+  position: sticky;
+  top: 57px;
+  z-index: 9;
+  background: var(--bg);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,.06);
+  margin-bottom: 4px;
+}
 .filterbar {
   background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
@@ -232,7 +241,7 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 /* stretch cards to equal height only inside grid rows */
 .kpi-grid .sec, .grid-2col .sec { height: 100%; }
 .sec-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; overflow: hidden; }
-.sec-title { font-weight: 600; font-size: 13px; color: var(--ink); letter-spacing: -0.1px; white-space: nowrap; }
+.sec-title { font-weight: 600; font-size: 12px; color: var(--ink); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .sec-sub { font-size: 11px; color: var(--ink-4); margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sec-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
 .sec-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
@@ -442,25 +451,8 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 /* ===== RESPONSIVE BREAKPOINTS ===== */
 
 /* Medium — tablets / small laptops (< 1200px) */
+/* Grid is fully JS-driven via body.sb-collapsed — no grid override here */
 @media (max-width: 1199px) {
-  .app { grid-template-columns: 56px 1fr; }
-
-  /* Collapse sidebar to icon-only */
-  .sidebar-brand { padding: 12px 8px 8px; align-items: center; }
-  .brand-sub-label { display: none; }
-  .nav-item span:not(.nav-soon) { display: none; }
-  .nav-item .nav-chevron { display: none; }
-  .nav-soon { display: none; }
-  .nav-item { justify-content: center; padding: 10px; }
-  .nav-subnav { display: none; }
-  .logout-btn span { display: none; }
-  .logout-btn { justify-content: center; }
-  .nav-item.active::before { display: none; }
-  .sidebar-section { display: none; }
-  .sidebar-foot .avatar { margin: 0 auto; }
-  .sidebar-foot > div:nth-child(2), .sidebar-foot > svg { display: none; }
-  .sidebar-foot { justify-content: center; padding: 10px; }
-
   /* KPI row: 2 per row */
   .col-3 { grid-column: span 6; }
 
@@ -469,11 +461,8 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 }
 
 /* Small — portrait tablets / large phones (< 900px) */
+/* Sidebar stays as icon-only (56px) from 1199px breakpoint — only content layout changes here */
 @media (max-width: 899px) {
-  .app { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
-  .bottom-nav { display: flex; }
-  .main { padding-bottom: 64px; }
 
   /* All grid cols go full width */
   .col-3, .col-4, .col-6, .col-8 { grid-column: span 12; }
@@ -489,6 +478,7 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 
   .canvas { padding: 12px 12px 32px; gap: 14px; }
   .topbar { padding: 10px 14px; gap: 10px; }
+  .filter-sticky { top: 53px; }
 
   /* Filterbar: wrap tighter */
   .filter { min-width: 120px; }
@@ -507,6 +497,14 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
   /* Busiest Hours park rows: hide bar, tighten */
   .bh-park-row { grid-template-columns: 1fr 60px 80px; }
   .bh-park-row > :nth-child(3) { display: none; } /* bar track */
+}
+
+/* XSmall — phones (< 600px): hide sidebar, show bottom nav */
+@media (max-width: 599px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .bottom-nav { display: flex; }
+  .main { padding-bottom: 64px; }
 }
 
 /* ── Date / Range Pickers ──────────────────────────────────────────────────── */

@@ -1,14 +1,14 @@
 'use client';
-import { inr } from '../lib/format';
+import { inr, prevPeriodLabel } from '../lib/format';
 import { Section, Delta } from './Primitives';
 
-export default function TopPerformingParks({ parks = [], dateLabel = '', compare = false }) {
+export default function TopPerformingParks({ parks = [], dateLabel = '', compare = false, date = '', dateEnd = '' }) {
   const max = Math.max(...parks.map(p => p.revenue), 1);
 
   return (
     <Section
-      title="Top Performing Parks"
-      sub={`by revenue${dateLabel ? ` · ${dateLabel}` : ''}`}
+      title="Revenue by Park"
+      sub={compare ? prevPeriodLabel(dateLabel, date, dateEnd) : ''}
     >
       {parks.length === 0 ? (
         <div style={{ color: 'var(--ink-4)', fontSize: 12 }}>No data for this period</div>

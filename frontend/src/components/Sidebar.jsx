@@ -43,11 +43,22 @@ export default function Sidebar({ active = 'dashboard' }) {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('sb-collapsed') === 'true';
-    if (saved) {
-      setCollapsed(true);
-      document.body.classList.add('sb-collapsed');
-    }
+    const mq = window.matchMedia('(max-width: 1199px)');
+
+    const sync = () => {
+      if (mq.matches) {
+        setCollapsed(true);
+        document.body.classList.add('sb-collapsed');
+      } else {
+        const saved = localStorage.getItem('sb-collapsed') === 'true';
+        setCollapsed(saved);
+        document.body.classList.toggle('sb-collapsed', saved);
+      }
+    };
+
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   const toggle = () => {

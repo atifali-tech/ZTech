@@ -7,15 +7,15 @@ export function KpiCard({ label, icon, value, delta, deltaLabel, extra }) {
   const hasTrend = delta != null || deltaLabel;
   return (
     <div className="sec kpi">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <div>
         <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
           {icon && <Icon name={icon} size={15} color="var(--ink-4)"/>}
           {label}
         </div>
         {hasTrend && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, flexWrap: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
             {delta != null && <Delta value={delta}/>}
-            {deltaLabel && <span style={{ color: 'var(--ink-4)', fontSize: 11, whiteSpace: 'nowrap' }}>{deltaLabel}</span>}
+            {deltaLabel && <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{deltaLabel}</span>}
           </div>
         )}
       </div>

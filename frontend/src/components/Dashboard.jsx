@@ -9,7 +9,7 @@ import TopPerformingParks from './TopPerformingParks';
 import { KpiCard } from './KpiRow';
 import Icon from './Icon';
 import BottomNav from './BottomNav';
-import { num, inr, inrFull } from '../lib/format';
+import { num, inr, inrFull, prevPeriodLabel } from '../lib/format';
 import RevenuePieCard, { COLOR_MAPS, InlinePieBreakdown } from './RevenuePieCard';
 
 const today = new Date();
@@ -86,9 +86,10 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
 
   useEffect(() => { fetchData(DEFAULT_FILTERS); }, []);
 
-  const onApply = async () => {
-    await fetchData(filters);
-    setAppliedFilters(filters);
+  const onApply = async (overrideFilters) => {
+    const f = overrideFilters ?? filters;
+    await fetchData(f);
+    setAppliedFilters(f);
   };
 
   const onExport = (kind) => {
@@ -102,31 +103,33 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
       <div className="main">
         <Topbar/>
         <div className="canvas">
-          <FilterBar filters={filters} setFilters={setFilters} onApply={onApply} onExport={onExport}/>
+          <div className="filter-sticky">
+            <FilterBar filters={filters} setFilters={setFilters} onApply={onApply} onExport={onExport}/>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--ink-3)' }}>
-            <Icon name="info" size={13} color="var(--ink-4)"/>
-            Showing data for{' '}
-            <strong style={{ color: 'var(--ink)' }}>
-              {(() => {
-                const { park, state, cities } = appliedFilters;
-                if (park !== 'All Parks') return park;
-                if (state === 'All States' && cities.length === 0)
-                  return `All${parkCount != null ? ` ${parkCount}` : ''} parks`;
-                if (state !== 'All States' && cities.length === 0)
-                  return `All parks · ${state}`;
-                if (cities.length === 1)
-                  return `${cities[0]}${state !== 'All States' ? `, ${state}` : ''}`;
-                if (cities.length <= 3)
-                  return `${cities.join(', ')}${state !== 'All States' ? ` · ${state}` : ''}`;
-                return `${cities.slice(0, 2).join(', ')} +${cities.length - 2}${state !== 'All States' ? ` · ${state}` : ''}`;
-              })()}
-            </strong>{' '}
-            (<strong style={{ color: 'var(--ink)'}}>{appliedFilters.range}</strong>)
-            <span className="spacer"/>
-            {loading && <span className="tag amber">Refreshing widgets…</span>}
-            {appliedFilters.compare && <span className="tag teal">Comparing to previous period</span>}
-            <ExportMenu onExport={onExport}/>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--ink-3)', marginTop: 8 }}>
+              <Icon name="info" size={13} color="var(--ink-4)"/>
+              Showing data for{' '}
+              <strong style={{ color: 'var(--ink)' }}>
+                {(() => {
+                  const { park, state, cities } = appliedFilters;
+                  if (park !== 'All Parks') return park;
+                  if (state === 'All States' && cities.length === 0)
+                    return `All${parkCount != null ? ` ${parkCount}` : ''} parks`;
+                  if (state !== 'All States' && cities.length === 0)
+                    return `All parks · ${state}`;
+                  if (cities.length === 1)
+                    return `${cities[0]}${state !== 'All States' ? `, ${state}` : ''}`;
+                  if (cities.length <= 3)
+                    return `${cities.join(', ')}${state !== 'All States' ? ` · ${state}` : ''}`;
+                  return `${cities.slice(0, 2).join(', ')} +${cities.length - 2}${state !== 'All States' ? ` · ${state}` : ''}`;
+                })()}
+              </strong>{' '}
+              (<strong style={{ color: 'var(--ink)'}}>{appliedFilters.range}</strong>)
+              <span className="spacer"/>
+              {loading && <span className="tag amber">Refreshing widgets…</span>}
+              {appliedFilters.compare && <span className="tag teal">Comparing to previous period</span>}
+              <ExportMenu onExport={onExport}/>
+            </div>
           </div>
 
           <div style={{ opacity: loading ? 0.55 : 1, transition: 'opacity .25s', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -134,14 +137,17 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
             {/* ROW 1 — 3 KPI cards */}
             {(() => {
               const catTotal = (revenueSplits?.byCategory || []).reduce((s, c) => s + c.value, 0);
-              const comparing = kpis?.deltaLabel != null;
+              const comparing  = kpis?.deltaLabel != null;
+              const deltaLabel = comparing
+                ? prevPeriodLabel(appliedFilters.range, appliedFilters.date, appliedFilters.dateEnd)
+                : null;
               return (
                 <div className="kpi-grid">
                   <KpiCard
                     label="Total Revenue" icon="chart"
                     value={inrFull(catTotal || kpis?.totalRevenue || 0)}
                     delta={comparing ? kpis.deltaRevenue : null}
-                    deltaLabel={kpis?.deltaLabel}
+                    deltaLabel={deltaLabel}
                     extra={<InlinePieBreakdown
                       items={(topParks?.Revenue || []).map(p => ({ name: p.name, value: p.value, color: p.color }))}
                       formatValue={inr}
@@ -151,7 +157,7 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
                     label="Total Visitors" icon="users"
                     value={num(kpis?.totalVisitors)}
                     delta={comparing ? kpis.deltaVisitors : null}
-                    deltaLabel={kpis?.deltaLabel}
+                    deltaLabel={deltaLabel}
                     extra={<InlinePieBreakdown
                       items={(topParks?.Footfall || []).map(p => ({ name: p.name, value: p.value, color: p.color }))}
                       formatValue={num}
@@ -161,7 +167,7 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
                     label="Ticket Transactions" icon="ticket"
                     value={num(kpis?.totalTickets)}
                     delta={comparing ? kpis.deltaTickets : null}
-                    deltaLabel={kpis?.deltaLabel}
+                    deltaLabel={deltaLabel}
                     extra={<InlinePieBreakdown
                       items={revenueSplits?.bySource || []}
                       formatValue={num}
@@ -178,12 +184,18 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
                 items={revenueSplits?.byCategory || []}
                 colorMap={COLOR_MAPS.category}
                 compare={appliedFilters.compare}
+                range={appliedFilters.range}
+                date={appliedFilters.date}
+                dateEnd={appliedFilters.dateEnd}
               />
               <RevenuePieCard
                 title="Revenue by Payment Mode"
                 items={revenueSplits?.byPayment || []}
                 colorMap={COLOR_MAPS.payment}
                 compare={appliedFilters.compare}
+                range={appliedFilters.range}
+                date={appliedFilters.date}
+                dateEnd={appliedFilters.dateEnd}
               />
             </div>
 
@@ -192,6 +204,8 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
               parks={topParksRev}
               dateLabel={appliedFilters.range}
               compare={appliedFilters.compare}
+              date={appliedFilters.date}
+              dateEnd={appliedFilters.dateEnd}
             />
 
             {/* ROW 4 — Busiest Hours by Park */}

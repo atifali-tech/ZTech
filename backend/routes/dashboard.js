@@ -32,7 +32,7 @@ function prevDateSQL(range, date, dateEnd, col = 'stat_date') {
   const de = /^\d{4}-\d{2}-\d{2}$/.test(dateEnd  || '') ? `DATE '${dateEnd}'` : 'CURRENT_DATE';
   switch (range) {
     case 'Daily':          return `${col} = ${d} - INTERVAL '1 day'`;
-    case 'Weekly':         return `${col} >= ${d} - INTERVAL '7 days'   AND ${col} <= ${de} - INTERVAL '7 days'`;
+    case 'Weekly':         return `${col} >= ${d} - INTERVAL '7 days' AND ${col} <= ${d} - INTERVAL '1 day'`;
     case 'Monthly':        return `${col} >= ${d} - INTERVAL '1 month'  AND ${col} <= ${de} - INTERVAL '1 month'`;
     case 'Quarterly':      return `${col} >= ${d} - INTERVAL '3 months' AND ${col} <= ${de} - INTERVAL '3 months'`;
     case 'Yearly':         return `${col} >= ${d} - INTERVAL '1 year'   AND ${col} <= ${de} - INTERVAL '1 year'`;
@@ -51,13 +51,13 @@ function pct(curr, prev) {
 function compareDeltaLabel(range) {
   switch (range) {
     case 'Daily':          return 'vs yesterday';
-    case 'Weekly':         return 'vs prev week';
-    case 'Monthly':        return 'vs prev month';
-    case 'Quarterly':      return 'vs prev quarter';
-    case 'Yearly':         return 'vs prev year';
-    case 'Last 3 Months':  return 'vs prev 3 months';
-    case 'Last 6 Months':  return 'vs prev 6 months';
-    case 'Last 12 Months': return 'vs prev 12 months';
+    case 'Weekly':         return 'vs previous week';
+    case 'Monthly':        return 'vs previous month';
+    case 'Quarterly':      return 'vs previous quarter';
+    case 'Yearly':         return 'vs previous year';
+    case 'Last 3 Months':  return 'vs previous 3 months';
+    case 'Last 6 Months':  return 'vs previous 6 months';
+    case 'Last 12 Months': return 'vs previous 12 months';
     case 'Custom Range':   return 'vs prev period';
     default:               return 'vs prev period';
   }
