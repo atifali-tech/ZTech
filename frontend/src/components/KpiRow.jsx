@@ -3,29 +3,33 @@ import Icon from './Icon';
 import { Delta } from './Primitives';
 import { num, inr, inrFull, formatHour } from '../lib/format';
 
-function KpiCard({ label, icon, value, delta, deltaLabel, extra }) {
-  const trend = (delta != null || deltaLabel) ? (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-      {delta != null && <Delta value={delta}/>}
-      {deltaLabel && <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{deltaLabel}</span>}
-    </div>
-  ) : null;
-
+export function KpiCard({ label, icon, value, delta, deltaLabel, extra }) {
+  const hasTrend = delta != null || deltaLabel;
   return (
     <div className="sec kpi">
-      <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
-        {icon && <Icon name={icon} size={15} color="var(--ink-4)"/>}
-        {label}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
+          {icon && <Icon name={icon} size={15} color="var(--ink-4)"/>}
+          {label}
+        </div>
+        {hasTrend && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, flexWrap: 'nowrap' }}>
+            {delta != null && <Delta value={delta}/>}
+            {deltaLabel && <span style={{ color: 'var(--ink-4)', fontSize: 11, whiteSpace: 'nowrap' }}>{deltaLabel}</span>}
+          </div>
+        )}
       </div>
       <div className="kpi-val">{value}</div>
-      {trend}
-      {extra && <div style={{ margin: '8px 0 4px', borderTop: '1px solid var(--border)' }}/>}
-      {extra}
+      {extra && (
+        <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', padding: '8px 0' }}>
+          {extra}
+        </div>
+      )}
     </div>
   );
 }
 
-function BreakdownList({ rows, formatValue, emptyText }) {
+export function BreakdownList({ rows, formatValue, emptyText }) {
   if (!rows || rows.length === 0) {
     return <div style={{ color: 'var(--ink-4)', fontSize: 12 }}>{emptyText}</div>;
   }

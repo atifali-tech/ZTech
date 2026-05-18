@@ -4,20 +4,23 @@ import { api } from '../lib/api';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import FilterBar from './FilterBar';
-import KpiRow from './KpiRow';
 import HourlyChart from './HourlyChart';
 import TopParksRow from './TopParks';
-import ParkPerformance from './ParkPerformance';
-import RevenueSummary from './RevenueSummary';
+import RevenueSection from './RevenueSection';
+import BusiestHour from './BusiestHour';
+import { KpiCard } from './KpiRow';
 import Icon from './Icon';
 import BottomNav from './BottomNav';
+import { num, inr, inrFull } from '../lib/format';
+import RevenuePieCard, { COLOR_MAPS, InlinePieBreakdown } from './RevenuePieCard';
 
 const today = new Date();
-const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+const todayStr      = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+const monthStartStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
 
 const DEFAULT_FILTERS = {
   park: 'All Parks', state: 'All States', cities: [],
-  range: 'Daily', date: todayStr, dateEnd: todayStr, compare: false,
+  range: 'Monthly', date: monthStartStr, dateEnd: todayStr, compare: false,
 };
 
 function ExportMenu({ onExport }) {
@@ -125,17 +128,66 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
             <ExportMenu onExport={onExport}/>
           </div>
 
-          <div style={{ opacity: loading ? 0.55 : 1, transition: 'opacity .25s' }}>
-            <KpiRow data={kpis} revenueSplits={revenueSplits} topParks={topParks}/>
-          </div>
+          <div style={{ opacity: loading ? 0.55 : 1, transition: 'opacity .25s', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          <div className="grid-2col">
-            <HourlyChart data={hourly}/>
-            <ParkPerformance topParks={topParks}/>
-          </div>
-          <div className="grid-2col">
-            <RevenueSummary revenueSplits={revenueSplits}/>
-            <TopParksRow topParks={topParks}/>
+            {/* ROW 1 — 3 KPI cards */}
+            {(() => {
+              const catTotal = (revenueSplits?.byCategory || []).reduce((s, c) => s + c.value, 0);
+              const comparing = kpis?.deltaLabel != null;
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  <KpiCard
+                    label="Total Revenue" icon="chart"
+                    value={inrFull(catTotal || kpis?.totalRevenue || 0)}
+                    delta={comparing ? kpis.deltaRevenue : null}
+                    deltaLabel={kpis?.deltaLabel}
+                    extra={<InlinePieBreakdown
+                      items={(topParks?.Revenue || []).map(p => ({ name: p.name, value: p.value, color: p.color }))}
+                      formatValue={inr}
+                    />}
+                  />
+                  <KpiCard
+                    label="Total Visitors" icon="users"
+                    value={num(kpis?.totalVisitors)}
+                    delta={comparing ? kpis.deltaVisitors : null}
+                    deltaLabel={kpis?.deltaLabel}
+                    extra={<InlinePieBreakdown
+                      items={(topParks?.Footfall || []).map(p => ({ name: p.name, value: p.value, color: p.color }))}
+                      formatValue={num}
+                    />}
+                  />
+                  <KpiCard
+                    label="Ticket Transactions" icon="ticket"
+                    value={num(kpis?.totalTickets)}
+                    delta={comparing ? kpis.deltaTickets : null}
+                    deltaLabel={kpis?.deltaLabel}
+                    extra={<InlinePieBreakdown
+                      items={revenueSplits?.bySource || []}
+                      formatValue={num}
+                    />}
+                  />
+                </div>
+              );
+            })()}
+
+            {/* ROW 2 — 2 pie charts side by side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <RevenuePieCard
+                title="Revenue by Category"
+                items={revenueSplits?.byCategory || []}
+                colorMap={COLOR_MAPS.category}
+              />
+              <RevenuePieCard
+                title="Revenue by Payment Mode"
+                items={revenueSplits?.byPayment || []}
+                colorMap={COLOR_MAPS.payment}
+              />
+            </div>
+
+            <div className="grid-2col">
+              <HourlyChart data={hourly}/>
+              <TopParksRow topParks={topParks}/>
+            </div>
           </div>
 
           <div style={{ textAlign: 'center', color: 'var(--ink-5)', fontSize: 11, marginTop: 8 }}>

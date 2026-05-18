@@ -348,7 +348,7 @@ router.get('/revenue-splits', async (req, res) => {
         ORDER BY revenue DESC
       `, params),
       pool.query(`
-        SELECT TRIM(t.source) AS name, SUM(t.total_amount) AS revenue
+        SELECT TRIM(t.source) AS name, COUNT(DISTINCT t.ticket_id)::numeric AS revenue
         FROM tickets t
         WHERE ${ticketWhere}
         GROUP BY 1
