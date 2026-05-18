@@ -54,11 +54,13 @@ export const api = {
   demographics:  (f) => get(`/api/dashboard/demographics${qs(f)}`),
   revenueSplits: (f) => get(`/api/dashboard/revenue-splits${qs(f)}`),
   hourly:        (f) => get(`/api/dashboard/hourly${qs(f)}`),
+  busiestByPark: (f) => get(`/api/dashboard/busiest-by-park${qs(f)}`),
   heatmap:       (f) => get(`/api/dashboard/heatmap${qs(f)}`),
   weekendWeekday:(f) => get(`/api/dashboard/weekend-weekday${qs(f)}`),
   comparative:   (f) => get(`/api/dashboard/comparative${qs(f)}`),
-  topParks:      (f) => get(`/api/dashboard/top-parks${qs(f)}`),
-  revenueTrend:  (f) => get(`/api/dashboard/revenue-trend${qs(f)}`),
+  topParks:         (f) => get(`/api/dashboard/top-parks${qs(f)}`),
+  topParksRevenue:  (f) => get(`/api/dashboard/top-parks-revenue${qs(f)}`),
+  revenueTrend:     (f) => get(`/api/dashboard/revenue-trend${qs(f)}`),
   parks:         ()  => get('/api/dashboard/parks'),
   tickets: (params = {}) => {
     const s = new URLSearchParams(params).toString();

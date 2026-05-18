@@ -95,116 +95,121 @@ function parkSQL(park, state, cities, parkCol = 'park_id') {
 
 // ─── KPIs ────────────────────────────────────────────────────────────────────
 // GET /api/dashboard/kpis?park=&state=&city=&range=
+// Single source of truth: all queries read from tickets table directly.
 router.get('/kpis', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state, range, date, dateEnd, compare } = req.query;
     const cities = extractCities(req.query.city);
-    const { clauses: dailyParkClauses, params: dailyParams } = parkSQL(park, state, cities, 'park_id');
-    const allClauses = [dateSQL(range, date, dateEnd), ...dailyParkClauses];
-    const WHERE      = `WHERE ${allClauses.join(' AND ')}`;
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const parkWhere = parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : '';
+    const dateWhere = dateSQL(range, date, dateEnd, 'DATE(t.created_at)');
+    const anchor    = /^\d{4}-\d{2}-\d{2}$/.test(dateEnd || '') ? `DATE '${dateEnd}'` : 'CURRENT_DATE';
 
-    // Aggregate totals for the selected period
-    const today = await pool.query(`
-      SELECT
-        SUM(total_visitors) AS total_visitors,
-        SUM(total_revenue)  AS total_revenue,
-        SUM(total_tickets)  AS total_tickets
-      FROM daily_stats
-      ${WHERE}
-    `, dailyParams);
+    const [totalsResult, sparkResult, peakRows, todayCount, weekResult, monthResult, peakResult] = await Promise.all([
+      // Aggregate totals for selected period
+      pool.query(`
+        SELECT
+          COALESCE(SUM(t.quantity), 0)::int             AS total_visitors,
+          COALESCE(SUM(t.total_amount), 0)::numeric     AS total_revenue,
+          COALESCE(COUNT(DISTINCT t.ticket_id), 0)::int AS total_tickets
+        FROM tickets t
+        WHERE ${dateWhere}${parkWhere}
+      `, params),
 
-    // 7-day sparkline — always last 7 days, anchored to dateEnd
-    const anchor = /^\d{4}-\d{2}-\d{2}$/.test(dateEnd || '') ? `DATE '${dateEnd}'` : 'CURRENT_DATE';
-    const sparkClauses = [`stat_date > ${anchor} - INTERVAL '7 days'`, `stat_date <= ${anchor}`, ...dailyParkClauses];
-    const spark = await pool.query(`
-      SELECT
-        stat_date,
-        SUM(total_visitors)  AS visitors,
-        SUM(total_revenue)   AS revenue,
-        SUM(total_tickets)   AS tickets,
-        SUM(peak_footfall)   AS peak
-      FROM daily_stats
-      WHERE ${sparkClauses.join(' AND ')}
-      GROUP BY stat_date
-      ORDER BY stat_date ASC
-      LIMIT 7
-    `, dailyParams);
+      // Sparkline: last 7 days grouped by day
+      pool.query(`
+        SELECT
+          DATE(t.created_at)                            AS stat_date,
+          COALESCE(SUM(t.quantity), 0)::int             AS visitors,
+          COALESCE(SUM(t.total_amount), 0)::numeric     AS revenue,
+          COALESCE(COUNT(DISTINCT t.ticket_id), 0)::int AS tickets
+        FROM tickets t
+        WHERE DATE(t.created_at) > ${anchor} - INTERVAL '7 days'
+          AND DATE(t.created_at) <= ${anchor}${parkWhere}
+        GROUP BY DATE(t.created_at)
+        ORDER BY stat_date ASC
+        LIMIT 7
+      `, params),
 
-    // Separate parkSQL for tickets table (uses 't.park_id' alias)
-    const { clauses: ticketParkClauses, params: ticketParams } = parkSQL(park, state, cities, 't.park_id');
-    const ticketWhere = `DATE(t.created_at) > ${anchor} - INTERVAL '7 days' AND DATE(t.created_at) <= ${anchor}${ticketParkClauses.length ? ` AND ${ticketParkClauses.join(' AND ')}` : ''}`;
-    const todayWhere  = `DATE(t.created_at) = ${anchor}${ticketParkClauses.length ? ` AND ${ticketParkClauses.join(' AND ')}` : ''}`;
-
-    const peakWhere = [
-      dateSQL(range, date, dateEnd, 'DATE(t.created_at)'),
-      'EXTRACT(hour FROM t.created_at) BETWEEN 10 AND 18',
-      ...ticketParkClauses,
-    ].join(' AND ');
-
-    const [peakRows, todayCount, weekResult, monthResult, peakResult] = await Promise.all([
+      // Peak ticket count per day (last 7 days) → sparkPeak
       pool.query(`
         SELECT day, MAX(cnt) AS peak
         FROM (
-          SELECT DATE(t.created_at)             AS day,
+          SELECT DATE(t.created_at)              AS day,
                  EXTRACT(hour FROM t.created_at) AS hr,
                  COUNT(*)                        AS cnt
           FROM tickets t
-          WHERE ${ticketWhere}
+          WHERE DATE(t.created_at) > ${anchor} - INTERVAL '7 days'
+            AND DATE(t.created_at) <= ${anchor}${parkWhere}
           GROUP BY 1, 2
         ) sub
         GROUP BY 1
         ORDER BY 1 ASC
         LIMIT 7
-      `, ticketParams),
+      `, params),
+
+      // Today ticket count → liveCount
       pool.query(`
         SELECT COUNT(*) AS cnt
         FROM tickets t
-        WHERE ${todayWhere}
-      `, ticketParams),
+        WHERE DATE(t.created_at) = ${anchor}${parkWhere}
+      `, params),
+
+      // Last 7 days revenue → weekRevenue
       pool.query(`
-        SELECT SUM(total_revenue) AS revenue FROM daily_stats
-        WHERE stat_date > ${anchor} - INTERVAL '7 days' AND stat_date <= ${anchor}
-          ${dailyParkClauses.length ? `AND ${dailyParkClauses.join(' AND ')}` : ''}
-      `, dailyParams),
+        SELECT COALESCE(SUM(t.total_amount), 0)::numeric AS revenue
+        FROM tickets t
+        WHERE DATE(t.created_at) > ${anchor} - INTERVAL '7 days'
+          AND DATE(t.created_at) <= ${anchor}${parkWhere}
+      `, params),
+
+      // Last 30 days revenue → monthRevenue
       pool.query(`
-        SELECT SUM(total_revenue) AS revenue FROM daily_stats
-        WHERE stat_date > ${anchor} - INTERVAL '30 days' AND stat_date <= ${anchor}
-          ${dailyParkClauses.length ? `AND ${dailyParkClauses.join(' AND ')}` : ''}
-      `, dailyParams),
+        SELECT COALESCE(SUM(t.total_amount), 0)::numeric AS revenue
+        FROM tickets t
+        WHERE DATE(t.created_at) > ${anchor} - INTERVAL '30 days'
+          AND DATE(t.created_at) <= ${anchor}${parkWhere}
+      `, params),
+
+      // Peak hour for the selected period → peakHour / peakCount / peakRevenue
       pool.query(`
         SELECT
           EXTRACT(hour FROM t.created_at)::int      AS peak_hour,
           COUNT(*)::int                              AS peak_count,
           COALESCE(SUM(t.total_amount), 0)::numeric AS peak_revenue
         FROM tickets t
-        WHERE ${peakWhere}
+        WHERE ${dateWhere}
+          AND EXTRACT(hour FROM t.created_at) BETWEEN 10 AND 18${parkWhere}
         GROUP BY 1
         ORDER BY 2 DESC
         LIMIT 1
-      `, ticketParams),
+      `, params),
     ]);
 
-    const t    = today.rows[0];
-    const rows = spark.rows;
+    const row  = totalsResult.rows[0];
+    const rows = sparkResult.rows;
     const peak = peakResult.rows[0] || {};
 
     // Previous-period comparison — only when compare=true
     let deltaVisitors = null, deltaRevenue = null, deltaTickets = null, deltaLabel = null;
     if (compare === 'true') {
-      const prevClauses = [prevDateSQL(range, date, dateEnd), ...dailyParkClauses];
+      const prevWhere = prevDateSQL(range, date, dateEnd, 'DATE(t.created_at)');
       const prev = await pool.query(`
-        SELECT SUM(total_visitors) AS pv, SUM(total_revenue) AS pr, SUM(total_tickets) AS pt
-        FROM daily_stats
-        WHERE ${prevClauses.join(' AND ')}
-      `, dailyParams);
+        SELECT
+          COALESCE(SUM(t.quantity), 0)::int             AS pv,
+          COALESCE(SUM(t.total_amount), 0)::numeric     AS pr,
+          COALESCE(COUNT(DISTINCT t.ticket_id), 0)::int AS pt
+        FROM tickets t
+        WHERE ${prevWhere}${parkWhere}
+      `, params);
       const p  = prev.rows[0];
       const pv = parseInt(p.pv)    || 0;
       const pr = parseFloat(p.pr)  || 0;
       const pt = parseInt(p.pt)    || 0;
-      const cv = parseInt(t.total_visitors)   || 0;
-      const cr = parseFloat(t.total_revenue)  || 0;
-      const ct = parseInt(t.total_tickets)    || 0;
+      const cv = parseInt(row.total_visitors)  || 0;
+      const cr = parseFloat(row.total_revenue) || 0;
+      const ct = parseInt(row.total_tickets)   || 0;
       deltaVisitors = pct(cv, pv);
       deltaRevenue  = pct(cr, pr);
       deltaTickets  = pct(ct, pt);
@@ -212,17 +217,17 @@ router.get('/kpis', async (req, res) => {
     }
 
     res.json({
-      totalVisitors:    parseInt(t.total_visitors)      || 0,
-      totalRevenue:     parseFloat(t.total_revenue)     || 0,
-      totalTickets:     parseInt(t.total_tickets)       || 0,
-      peakHour:    parseInt(peak.peak_hour)        || 0,
-      peakCount:   parseInt(peak.peak_count)       || 0,
-      peakRevenue: parseFloat(peak.peak_revenue)   || 0,
+      totalVisitors:    parseInt(row.total_visitors)     || 0,
+      totalRevenue:     parseFloat(row.total_revenue)    || 0,
+      totalTickets:     parseInt(row.total_tickets)      || 0,
+      peakHour:         parseInt(peak.peak_hour)         || 0,
+      peakCount:        parseInt(peak.peak_count)        || 0,
+      peakRevenue:      parseFloat(peak.peak_revenue)    || 0,
       sparkVisitors:    rows.map(r => parseInt(r.visitors)),
       sparkRevenue:     rows.map(r => parseFloat(r.revenue)),
       sparkTickets:     rows.map(r => parseInt(r.tickets)),
       sparkPeak:        peakRows.rows.map(r => parseInt(r.peak)),
-      liveCount:        parseInt(todayCount.rows[0].cnt) || 0,
+      liveCount:        parseInt(todayCount.rows[0].cnt)        || 0,
       weekRevenue:      parseFloat(weekResult.rows[0]?.revenue)  || 0,
       monthRevenue:     parseFloat(monthResult.rows[0]?.revenue) || 0,
       deltaVisitors,
@@ -389,26 +394,109 @@ router.get('/revenue-splits', async (req, res) => {
 router.get('/hourly', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const { park, state, range, date, dateEnd } = req.query; const cities = extractCities(req.query.city);
+    const { park, state, range, date, dateEnd } = req.query;
+    const cities = extractCities(req.query.city);
     const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
 
+    const d  = /^\d{4}-\d{2}-\d{2}$/.test(date    || '') ? new Date(date)    : new Date();
+    const de = /^\d{4}-\d{2}-\d{2}$/.test(dateEnd  || '') ? new Date(dateEnd) : new Date();
+    let daysInPeriod;
+    switch (range) {
+      case 'Daily':          daysInPeriod = 1;   break;
+      case 'Weekly':         daysInPeriod = 7;   break;
+      case 'Quarterly':      daysInPeriod = 91;  break;
+      case 'Yearly':         daysInPeriod = 365; break;
+      case 'Last 3 Months':  daysInPeriod = 90;  break;
+      case 'Last 6 Months':  daysInPeriod = 180; break;
+      case 'Last 12 Months': daysInPeriod = 365; break;
+      default: daysInPeriod = Math.max(1, Math.round((de - d) / 86400000) + 1);
+    }
+
+    const dateWhere = dateSQL(range, date, dateEnd, 'DATE(created_at)');
+    const parkWhere = parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : '';
+
     const result = await pool.query(`
-      SELECT EXTRACT(HOUR FROM created_at)::int AS hour_of_day,
-             SUM(quantity) AS footfall,
-             SUM(total_amount) AS revenue
-      FROM tickets
-      WHERE ${dateSQL(range, date, dateEnd, 'DATE(created_at)')} ${parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : ''}
-      GROUP BY 1
-      ORDER BY 1 ASC
-    `, params);
+      WITH raw AS (
+        SELECT EXTRACT(HOUR FROM created_at)::int AS hour,
+               SUM(quantity)::numeric             AS footfall,
+               SUM(total_amount)::numeric         AS revenue
+        FROM tickets
+        WHERE ${dateWhere} ${parkWhere}
+        GROUP BY 1
+      ),
+      slots AS (SELECT generate_series(10, 19) AS hour)
+      SELECT s.hour,
+             COALESCE(ROUND(r.footfall / $${params.length + 1}::numeric), 0)::int AS footfall,
+             COALESCE(ROUND(r.revenue / $${params.length + 1}::numeric, 2), 0)      AS revenue
+      FROM slots s LEFT JOIN raw r ON r.hour = s.hour
+      ORDER BY s.hour
+    `, [...params, daysInPeriod]);
 
     res.json({
-      hours:    result.rows.map(r => parseInt(r.hour_of_day)),
-      footfall: result.rows.map(r => parseInt(r.footfall)),
-      revenue:  result.rows.map(r => parseFloat(r.revenue)),
+      hours:       result.rows.map(r => parseInt(r.hour)),
+      footfall:    result.rows.map(r => parseInt(r.footfall)),
+      revenue:     result.rows.map(r => parseFloat(r.revenue)),
+      isAverage:   daysInPeriod > 1,
+      daysInPeriod,
     });
   } catch (err) {
     console.error('/hourly error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── BUSIEST HOUR BY PARK ────────────────────────────────────────────────────
+// GET /api/dashboard/busiest-by-park
+router.get('/busiest-by-park', async (req, res) => {
+  const pool = req.app.locals.pool;
+  try {
+    const { park, state, range, date, dateEnd } = req.query;
+    const cities = extractCities(req.query.city);
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const dateWhere = dateSQL(range, date, dateEnd, 'DATE(t.created_at)');
+    const where = `${dateWhere}${parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : ''}`;
+
+    const result = await pool.query(`
+      WITH hourly AS (
+        SELECT t.park_id,
+               EXTRACT(HOUR FROM t.created_at)::int AS hour,
+               COUNT(DISTINCT t.ticket_id)::int      AS ticket_count,
+               SUM(t.total_amount)                   AS revenue
+        FROM tickets t
+        WHERE ${where}
+        GROUP BY t.park_id, EXTRACT(HOUR FROM t.created_at)
+      ),
+      ranked AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY park_id ORDER BY ticket_count DESC) AS rn
+        FROM hourly
+      ),
+      days AS (
+        SELECT COUNT(DISTINCT DATE(t.created_at)) AS days_in_period
+        FROM tickets t
+        WHERE ${where}
+      )
+      SELECT r.park_id, r.hour AS peak_hour, r.ticket_count, r.revenue::numeric,
+             p.name AS park_name, p.city, p.color_hex AS color,
+             d.days_in_period
+      FROM ranked r
+      JOIN parks p ON p.id = r.park_id
+      CROSS JOIN days d
+      WHERE r.rn = 1
+      ORDER BY r.ticket_count DESC
+    `, params);
+
+    res.json(result.rows.map(r => ({
+      parkId:       r.park_id,
+      parkName:     r.park_name,
+      city:         r.city,
+      color:        r.color,
+      peakHour:     parseInt(r.peak_hour),
+      ticketCount:  parseInt(r.ticket_count),
+      revenue:      parseFloat(r.revenue),
+      daysInPeriod: parseInt(r.days_in_period),
+    })));
+  } catch (err) {
+    console.error('/busiest-by-park error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -597,6 +685,60 @@ router.get('/top-parks', async (req, res) => {
     res.json(grouped);
   } catch (err) {
     console.error('/top-parks error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── TOP PARKS REVENUE (with trend) ─────────────────────────────────────────
+// GET /api/dashboard/top-parks-revenue
+router.get('/top-parks-revenue', async (req, res) => {
+  const pool = req.app.locals.pool;
+  try {
+    const { park, state, range, date, dateEnd } = req.query;
+    const cities = extractCities(req.query.city);
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const dateWhere     = dateSQL(range, date, dateEnd, 'DATE(t.created_at)');
+    const prevDateWhere = prevDateSQL(range, date, dateEnd, 'DATE(t.created_at)');
+    const parkWhere     = parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : '';
+
+    const result = await pool.query(`
+      WITH curr AS (
+        SELECT t.park_id, SUM(t.total_amount)::numeric AS revenue
+        FROM tickets t
+        WHERE ${dateWhere}${parkWhere}
+        GROUP BY t.park_id
+      ),
+      prev AS (
+        SELECT t.park_id, SUM(t.total_amount)::numeric AS revenue
+        FROM tickets t
+        WHERE ${prevDateWhere}${parkWhere}
+        GROUP BY t.park_id
+      )
+      SELECT p.id AS park_id, p.name, p.city, p.color_hex AS color,
+             COALESCE(c.revenue, 0)  AS revenue,
+             COALESCE(pr.revenue, 0) AS prev_revenue
+      FROM parks p
+      LEFT JOIN curr c  ON c.park_id  = p.id
+      LEFT JOIN prev pr ON pr.park_id = p.id
+      WHERE COALESCE(c.revenue, 0) > 0
+      ORDER BY revenue DESC
+    `, params);
+
+    res.json(result.rows.map(r => {
+      const revenue     = parseFloat(r.revenue);
+      const prevRevenue = parseFloat(r.prev_revenue);
+      return {
+        parkId:      r.park_id,
+        name:        r.name,
+        city:        r.city,
+        color:       r.color,
+        revenue,
+        prevRevenue,
+        trend: pct(revenue, prevRevenue),
+      };
+    }));
+  } catch (err) {
+    console.error('/top-parks-revenue error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

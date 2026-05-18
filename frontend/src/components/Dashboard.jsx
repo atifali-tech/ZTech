@@ -4,10 +4,8 @@ import { api } from '../lib/api';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import FilterBar from './FilterBar';
-import HourlyChart from './HourlyChart';
-import TopParksRow from './TopParks';
-import RevenueSection from './RevenueSection';
-import BusiestHour from './BusiestHour';
+import BusiestHoursCard from './BusiestHoursCard';
+import TopPerformingParks from './TopPerformingParks';
 import { KpiCard } from './KpiRow';
 import Icon from './Icon';
 import BottomNav from './BottomNav';
@@ -50,10 +48,12 @@ function ExportMenu({ onExport }) {
 }
 
 export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSplits, hourly: initHourly, topParks: initTopParks }) {
-  const [kpis,          setKpis]          = useState(initKpis);
-  const [revenueSplits, setRevenueSplits] = useState(initRevenueSplits);
-  const [hourly,        setHourly]        = useState(initHourly);
-  const [topParks,      setTopParks]      = useState(initTopParks);
+  const [kpis,           setKpis]          = useState(initKpis);
+  const [revenueSplits,  setRevenueSplits] = useState(initRevenueSplits);
+  const [hourly,         setHourly]        = useState(initHourly);
+  const [topParks,       setTopParks]      = useState(initTopParks);
+  const [busiestByPark,  setBusiestByPark]  = useState([]);
+  const [topParksRev,    setTopParksRev]    = useState([]);
 
   const [filters,        setFilters]        = useState(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
@@ -68,16 +68,20 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
   const fetchData = async (f) => {
     setLoading(true);
     try {
-      const [r0, r1, r2, r3] = await Promise.allSettled([
+      const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
         api.kpis(f),
         api.revenueSplits(f),
         api.hourly(f),
         api.topParks(f),
+        api.busiestByPark(f),
+        api.topParksRevenue(f),
       ]);
       if (r0.status === 'fulfilled') setKpis(r0.value);
       if (r1.status === 'fulfilled') setRevenueSplits(r1.value);
       if (r2.status === 'fulfilled') setHourly(r2.value);
       if (r3.status === 'fulfilled') setTopParks(r3.value);
+      if (r4.status === 'fulfilled') setBusiestByPark(r4.value);
+      if (r5.status === 'fulfilled') setTopParksRev(r5.value);
     } finally {
       setLoading(false);
     }
@@ -184,10 +188,19 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
               />
             </div>
 
-            <div className="grid-2col">
-              <HourlyChart data={hourly}/>
-              <TopParksRow topParks={topParks}/>
-            </div>
+            {/* ROW 3 — Busiest Hours + Hourly Chart */}
+            <BusiestHoursCard
+              kpis={kpis}
+              busiestByPark={busiestByPark}
+              hourly={hourly}
+              appliedFilters={appliedFilters}
+            />
+
+            {/* ROW 4 — Top Performing Parks */}
+            <TopPerformingParks
+              parks={topParksRev}
+              dateLabel={appliedFilters.range}
+            />
           </div>
 
           <div style={{ textAlign: 'center', color: 'var(--ink-5)', fontSize: 11, marginTop: 8 }}>

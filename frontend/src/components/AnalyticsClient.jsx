@@ -6,8 +6,8 @@ const today = new Date();
 const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
 const DEFAULT_FILTERS = {
-  park: 'All Parks', state: 'All States', city: 'All Cities',
-  range: 'Last 7 days', date: todayStr, compare: false,
+  park: 'All Parks', state: 'All States', cities: [],
+  range: 'Monthly', date: todayStr, dateEnd: todayStr, compare: false,
 };
 import FilterBar from './FilterBar';
 import DemographicsSection from './Demographics';
