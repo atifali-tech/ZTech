@@ -64,8 +64,6 @@ export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
     <div className="topbar">
       <div className="crumbs">
         <Icon name={icon} size={13} color="var(--ink-3)"/>
-        <span>Operations</span>
-        <Icon name="chevronR" size={11} color="var(--ink-5)"/>
         <strong>{current}</strong>
       </div>
 

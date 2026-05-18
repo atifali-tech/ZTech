@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from './Icon';
@@ -28,8 +28,36 @@ function ZTechLogoDark() {
   );
 }
 
+function ZLogoIcon() {
+  return (
+    <div style={{
+      width: 30, height: 30, borderRadius: 4, border: '2px solid #C0202A',
+      display: 'grid', placeItems: 'center', flexShrink: 0,
+      fontFamily: 'Arial Black, Arial, sans-serif', fontWeight: 900, fontSize: 19, color: '#fff',
+    }}>z</div>
+  );
+}
+
 export default function Sidebar({ active = 'dashboard' }) {
   const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('sb-collapsed') === 'true';
+    if (saved) {
+      setCollapsed(true);
+      document.body.classList.add('sb-collapsed');
+    }
+  }, []);
+
+  const toggle = () => {
+    setCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('sb-collapsed', String(next));
+      document.body.classList.toggle('sb-collapsed', next);
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     await fetch(`${BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' });
@@ -38,24 +66,43 @@ export default function Sidebar({ active = 'dashboard' }) {
 
   return (
     <aside className="sidebar">
+
+      {/* Brand */}
       <div className="sidebar-brand">
-        <ZTechLogoDark/>
-        <div className="brand-sub-label">Operations Dashboard</div>
+        {collapsed ? (
+          <button className="sb-expand-btn" onClick={toggle} title="Expand sidebar">
+            <Icon name="chevronR" size={14}/>
+          </button>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8 }}>
+              <ZTechLogoDark/>
+              <button className="sb-toggle" onClick={toggle} title="Collapse sidebar">
+                <Icon name="chevronL" size={12}/>
+              </button>
+            </div>
+            <div className="brand-sub-label">Operations Dashboard</div>
+          </>
+        )}
       </div>
 
+      {/* Primary nav */}
       <div className="sidebar-nav">
         {NAV.map(it => (
-          <Link key={it.id} href={it.href} className={'nav-item' + (active === it.id ? ' active' : '')}>
+          <Link key={it.id} href={it.href}
+            className={'nav-item' + (active === it.id ? ' active' : '')}
+            data-label={it.label}>
             <Icon name={it.icon} size={15}/>
             <span>{it.label}</span>
           </Link>
         ))}
       </div>
 
+      {/* Roadmap section */}
       <div className="sidebar-section">Roadmap · Q3 · Q4</div>
       <div className="sidebar-nav">
         {SOON.map(it => (
-          <div key={it.id} className="nav-item disabled">
+          <div key={it.id} className="nav-item disabled" data-label={`${it.label} · Soon`}>
             <Icon name={it.icon} size={15}/>
             <span>{it.label}</span>
             <span className="nav-soon">Soon</span>
@@ -63,12 +110,14 @@ export default function Sidebar({ active = 'dashboard' }) {
         ))}
       </div>
 
+      {/* Footer */}
       <div className="sidebar-foot">
-        <button className="logout-btn" onClick={handleLogout}>
+        <button className="logout-btn" onClick={handleLogout} data-label="Logout">
           <Icon name="logout" size={14}/>
           <span>Logout</span>
         </button>
       </div>
+
     </aside>
   );
 }

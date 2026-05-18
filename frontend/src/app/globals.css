@@ -51,7 +51,8 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 input, select { font-family: inherit; font-size: inherit; }
 
 /* Layout */
-.app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; transition: grid-template-columns 0.22s ease; }
+body.sb-collapsed .app { grid-template-columns: 48px 1fr; }
 .main { min-width: 0; display: flex; flex-direction: column; }
 .canvas { padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 10px; }
 
@@ -60,7 +61,7 @@ input, select { font-family: inherit; font-size: inherit; }
   background: var(--sidebar); color: var(--sidebar-ink);
   border-right: 1px solid #0a0e18;
   display: flex; flex-direction: column;
-  position: sticky; top: 0; height: 100vh;
+  position: sticky; top: 0; height: 100vh; z-index: 20;
 }
 .sidebar-brand { padding: 16px 16px 10px; border-bottom: 1px solid var(--sidebar-line); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .brand-sub-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.16em; color: var(--teal); text-transform: uppercase; }
@@ -86,6 +87,53 @@ input, select { font-family: inherit; font-size: inherit; }
   transition: background 0.15s, color 0.15s;
 }
 .logout-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+
+/* ── Sidebar toggle button ── */
+.sb-toggle {
+  margin-left: auto; flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 5px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--sidebar-line);
+  cursor: pointer; display: grid; place-items: center;
+  color: var(--sidebar-ink-dim); transition: background 0.15s, color 0.15s;
+}
+.sb-toggle:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.sb-expand-btn {
+  width: 32px; height: 32px; border-radius: 6px; margin: 0 auto;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--sidebar-line);
+  cursor: pointer; display: grid; place-items: center;
+  color: var(--sidebar-ink-dim); transition: background 0.15s, color 0.15s;
+}
+.sb-expand-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+
+/* ── Collapsed sidebar styles ── */
+body.sb-collapsed .sidebar-brand { padding: 10px 8px 8px; align-items: center; }
+body.sb-collapsed .brand-sub-label { display: none; }
+body.sb-collapsed .sidebar-nav { padding: 8px 4px; }
+body.sb-collapsed .nav-item { justify-content: center; padding: 10px; gap: 0; }
+body.sb-collapsed .nav-item span:not(.nav-soon) { display: none; }
+body.sb-collapsed .nav-item.active::before { display: none; }
+body.sb-collapsed .nav-soon { display: none; }
+body.sb-collapsed .sidebar-section { display: none; }
+body.sb-collapsed .logout-btn { justify-content: center; padding: 10px; }
+body.sb-collapsed .logout-btn span { display: none; }
+body.sb-collapsed .sidebar-foot { justify-content: center; padding: 10px 4px; }
+
+/* Tooltips on collapsed nav items */
+body.sb-collapsed .nav-item,
+body.sb-collapsed .logout-btn { position: relative; }
+body.sb-collapsed .nav-item[data-label]:hover::after,
+body.sb-collapsed .logout-btn[data-label]:hover::after {
+  content: attr(data-label);
+  position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%);
+  background: var(--sidebar-2); color: var(--sidebar-ink);
+  padding: 5px 10px; border-radius: 5px; font-size: 12px; font-weight: 500;
+  white-space: nowrap; pointer-events: none; z-index: 200;
+  border: 1px solid var(--sidebar-line); box-shadow: 0 4px 16px rgba(0,0,0,.35);
+}
+
+/* Hide toggle on medium screens — already icon-only via media query */
+@media (max-width: 1199px) { .sb-toggle { display: none; } }
+
 .avatar {
   width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #0E7C66, #5A6BCF);
   color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 11px; flex-shrink: 0;

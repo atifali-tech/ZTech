@@ -12,6 +12,7 @@ const PATHS = {
   download: <><path d="M12 4v12"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></>,
   chevron:  <><path d="M6 9l6 6 6-6"/></>,
   chevronR: <><path d="M9 6l6 6-6 6"/></>,
+  chevronL: <><path d="M15 6l-6 6 6 6"/></>,
   bell:     <><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 19a2 2 0 0 0 4 0"/></>,
   filter:   <><path d="M3 5h18l-7 9v6l-4-2v-4L3 5z"/></>,
   refresh:  <><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M5 9a8 8 0 0 1 14-2"/><path d="M19 15a8 8 0 0 1-14 2"/></>,
