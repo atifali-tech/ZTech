@@ -70,15 +70,22 @@ function extractCities(cityParam) {
 }
 
 // Build park/state/cities WHERE clauses and params array.
+// park: string | string[] — 'All Parks' or array means no single-park filter
 // cities: string[] — empty means "all cities"
 function parkSQL(park, state, cities, parkCol = 'park_id') {
   const params  = [];
   const clauses = [];
-  if (park && park !== 'All Parks') {
-    params.push(park);
+  const parksArr = (Array.isArray(park) ? park : (park ? [park] : []))
+    .filter(p => p && p !== 'All Parks');
+  if (parksArr.length === 1) {
+    params.push(parksArr[0]);
     clauses.push(`${parkCol} = (
       SELECT id FROM parks WHERE LOWER(name) = LOWER($${params.length}) LIMIT 1
     )`);
+  } else if (parksArr.length > 1) {
+    const placeholders = parksArr.map((_, i) => `$${params.length + i + 1}`).join(', ');
+    clauses.push(`${parkCol} IN (SELECT id FROM parks WHERE LOWER(name) IN (${placeholders}))`);
+    params.push(...parksArr.map(p => p.toLowerCase()));
   } else {
     if (state && state !== 'All States') {
       params.push(state);
@@ -804,38 +811,49 @@ router.get('/top-parks-revenue', async (req, res) => {
 
     const result = await pool.query(`
       WITH curr AS (
-        SELECT t.park_id, SUM(t.total_amount)::numeric AS revenue
+        SELECT t.park_id,
+               SUM(t.total_amount)::numeric         AS revenue,
+               COUNT(DISTINCT t.ticket_id)::int     AS visitors
         FROM tickets t
         WHERE ${dateWhere}${parkWhere}
         GROUP BY t.park_id
       ),
       prev AS (
-        SELECT t.park_id, SUM(t.total_amount)::numeric AS revenue
+        SELECT t.park_id,
+               SUM(t.total_amount)::numeric         AS revenue,
+               COUNT(DISTINCT t.ticket_id)::int     AS visitors
         FROM tickets t
         WHERE ${prevDateWhere}${parkWhere}
         GROUP BY t.park_id
       )
       SELECT p.id AS park_id, p.name, p.city, p.color_hex AS color,
-             COALESCE(c.revenue, 0)  AS revenue,
-             COALESCE(pr.revenue, 0) AS prev_revenue
+             COALESCE(c.revenue,   0) AS revenue,
+             COALESCE(pr.revenue,  0) AS prev_revenue,
+             COALESCE(c.visitors,  0) AS visitors,
+             COALESCE(pr.visitors, 0) AS prev_visitors
       FROM parks p
       LEFT JOIN curr c  ON c.park_id  = p.id
       LEFT JOIN prev pr ON pr.park_id = p.id
-      WHERE COALESCE(c.revenue, 0) > 0
+      WHERE COALESCE(c.revenue, 0) > 0 OR COALESCE(c.visitors, 0) > 0
       ORDER BY revenue DESC
     `, params);
 
     res.json(result.rows.map(r => {
-      const revenue     = parseFloat(r.revenue);
-      const prevRevenue = parseFloat(r.prev_revenue);
+      const revenue      = parseFloat(r.revenue);
+      const prevRevenue  = parseFloat(r.prev_revenue);
+      const visitors     = parseInt(r.visitors);
+      const prevVisitors = parseInt(r.prev_visitors);
       return {
-        parkId:      r.park_id,
-        name:        r.name,
-        city:        r.city,
-        color:       r.color,
+        parkId:       r.park_id,
+        name:         r.name,
+        city:         r.city,
+        color:        r.color,
         revenue,
         prevRevenue,
-        trend: pct(revenue, prevRevenue),
+        visitors,
+        prevVisitors,
+        revenueTrend: pct(revenue, prevRevenue),
+        visitorTrend: pct(visitors, prevVisitors),
       };
     }));
   } catch (err) {
@@ -897,7 +915,7 @@ router.get('/parks', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const result = await pool.query(
-      `SELECT id, name, city, state FROM parks ORDER BY state, city, name`
+      `SELECT id, name, city, state, color_hex AS color FROM parks ORDER BY state, city, name`
     );
     res.json(result.rows);
   } catch (err) {

@@ -29,7 +29,7 @@ export function formatHour(h) {
 
 export function compareLabel(range) {
   const MAP = {
-    'Daily':          'vs yesterday',
+    'Daily':          'vs previous day',
     'Weekly':         'vs previous week',
     'Monthly':        'vs previous month',
     'Quarterly':      'vs previous quarter',
@@ -85,7 +85,9 @@ export function prevPeriodLabel(range, date, dateEnd) {
 
   switch (range) {
     case 'Daily': {
-      return `vs yesterday (${fmt1(addDays(d, -1))})`;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const label = d.getTime() === today.getTime() ? 'vs yesterday' : 'vs previous day';
+      return `${label} (${fmt1(addDays(d, -1))})`;
     }
     case 'Weekly': {
       // Always show full Mon–Sun of previous week (d is Monday; d-1 is last Sunday)

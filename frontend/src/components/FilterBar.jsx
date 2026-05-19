@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Icon from './Icon';
 import CityDropdown from './CityDropdown';
+import ParkDropdown from './ParkDropdown';
 import DatePicker    from './DatePicker';
 import WeekPicker    from './WeekPicker';
 import MonthPicker   from './MonthPicker';
@@ -53,6 +54,40 @@ export function computeDefaultDates(range) {
 
 const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+function addDays(str, n) {
+  const d = new Date(str + 'T00:00:00'); d.setDate(d.getDate() + n); return d;
+}
+function prevPeriodShort(range, date) {
+  if (!date) return 'Previous Period';
+  switch (range) {
+    case 'Daily': {
+      const d = addDays(date, -1);
+      return `${MO[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    }
+    case 'Weekly': {
+      const s = addDays(date, -7), e = addDays(date, -1);
+      return `${MO[s.getMonth()]} ${s.getDate()} – ${MO[e.getMonth()]} ${e.getDate()}`;
+    }
+    case 'Monthly': {
+      const d = new Date(date + 'T00:00:00');
+      const p = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+      return `${MO[p.getMonth()]} ${p.getFullYear()}`;
+    }
+    case 'Quarterly': {
+      const d = new Date(date + 'T00:00:00');
+      const q = Math.floor(d.getMonth() / 3);
+      return q === 0 ? `Q4 ${d.getFullYear() - 1}` : `Q${q} ${d.getFullYear()}`;
+    }
+    case 'Yearly': {
+      return `${new Date(date + 'T00:00:00').getFullYear() - 1}`;
+    }
+    case 'Last 3 Months':  return 'Prev. 3 Months';
+    case 'Last 6 Months':  return 'Prev. 6 Months';
+    case 'Last 12 Months': return 'Prev. 12 Months';
+    default: return 'Previous Period';
+  }
+}
+
 function fmtRolling(a, b) {
   if (!a || !b) return '';
   const s = new Date(a+'T00:00:00'), e = new Date(b+'T00:00:00');
@@ -90,31 +125,22 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
     return true;
   });
 
-  const autoPark = (cityList, stateFilter) => {
-    if (cityList.length !== 1) return 'All Parks';
-    const inCity = parks.filter(p => p.city===cityList[0] && (stateFilter==='All States'||p.state===stateFilter));
-    return inCity.length === 1 ? inCity[0].name : 'All Parks';
-  };
-
-  const onParkChange = (name) => {
-    if (name === 'All Parks') { setFilters(f=>({...f,park:'All Parks'})); return; }
-    const p = parks.find(pk=>pk.name===name);
-    setFilters(f=>({...f,park:name,state:p?.state??f.state,cities:p?.city?[p.city]:f.cities}));
+  const onParksChange = (selectedParks) => {
+    setFilters(f => ({ ...f, parks: selectedParks }));
   };
 
   const onStateChange = (state) => {
-    if (state === 'All States') { setFilters(f=>({...f,state,cities:[],park:'All Parks'})); return; }
+    if (state === 'All States') { setFilters(f=>({...f,state,cities:[],parks:[]})); return; }
     const citiesInState = [...new Set(parks.filter(p=>p.state===state).map(p=>p.city))].sort();
     if (citiesInState.length===1) {
-      const city = citiesInState[0];
-      setFilters(f=>({...f,state,cities:[city],park:autoPark([city],state)}));
+      setFilters(f=>({...f,state,cities:[citiesInState[0]],parks:[]}));
     } else {
-      setFilters(f=>({...f,state,cities:[],park:'All Parks'}));
+      setFilters(f=>({...f,state,cities:[],parks:[]}));
     }
   };
 
   const onCitiesChange = (selectedCities) => {
-    setFilters(f=>({...f,cities:selectedCities,park:autoPark(selectedCities,f.state)}));
+    setFilters(f => ({ ...f, cities: selectedCities, parks: [] }));
   };
 
   const onRangeChange = (range) => {
@@ -124,7 +150,7 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
 
   const onReset = () => {
     const { date, dateEnd } = computeDefaultDates('Monthly');
-    const resetF = { park: 'All Parks', state: 'All States', cities: [], range: 'Monthly', date, dateEnd, compare: filters.compare };
+    const resetF = { parks: [], state: 'All States', cities: [], range: 'Monthly', date, dateEnd, compare: false };
     setFilters(() => resetF);
     onApply(resetF);
   };
@@ -139,10 +165,7 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
       {/* Park */}
       <div className="filter">
         <label className="filter-label">Park</label>
-        <select className="filter-select" value={filters.park} onChange={e=>onParkChange(e.target.value)}>
-          <option value="All Parks">All Parks</option>
-          {visibleParks.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
-        </select>
+        <ParkDropdown parks={visibleParks} selected={filters.parks || []} onChange={onParksChange}/>
       </div>
 
       {/* State */}
@@ -204,10 +227,7 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
         onClick={()=>setFilters(f=>({...f,compare:!f.compare}))}>
         <span className="switch"/>
         vs. <span className="mono" style={{color:'var(--ink-3)',fontStyle:'normal'}}>{
-          ({ Daily: 'Yesterday', Weekly: 'Previous Week', Monthly: 'Previous Month',
-             Quarterly: 'Previous Quarter', Yearly: 'Previous Year',
-             'Last 3 Months': 'Prev. 3 Months', 'Last 6 Months': 'Prev. 6 Months',
-             'Last 12 Months': 'Prev. 12 Months' })[filters.range] || 'Previous Period'
+          prevPeriodShort(filters.range, filters.date)
         }</span>
       </button>
 

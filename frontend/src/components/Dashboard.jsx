@@ -17,7 +17,7 @@ const todayStr      = `${today.getFullYear()}-${String(today.getMonth()+1).padSt
 const monthStartStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
 
 const DEFAULT_FILTERS = {
-  park: 'All Parks', state: 'All States', cities: [],
+  parks: [], state: 'All States', cities: [],
   range: 'Monthly', date: monthStartStr, dateEnd: todayStr, compare: false,
 };
 
@@ -72,7 +72,7 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
         api.revenueSplits(f),
         api.topParks(f),
         api.busiestByPark(f),
-        api.topParksRevenue(f),
+        api.topParksRevenue({ ...f, parks: [], park: 'All Parks', state: 'All States', cities: [] }),
       ]);
       if (r0.status === 'fulfilled') setKpis(r0.value);
       if (r1.status === 'fulfilled') setRevenueSplits(r1.value);
@@ -111,8 +111,10 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
               Showing data for{' '}
               <strong style={{ color: 'var(--ink)' }}>
                 {(() => {
-                  const { park, state, cities } = appliedFilters;
-                  if (park !== 'All Parks') return park;
+                  const { parks, state, cities } = appliedFilters;
+                  if (parks && parks.length === 1) return parks[0];
+                  if (parks && parks.length > 1 && parks.length <= 3) return parks.join(', ');
+                  if (parks && parks.length > 3) return `${parks.slice(0, 2).join(', ')} +${parks.length - 2}`;
                   if (state === 'All States' && cities.length === 0)
                     return `All${parkCount != null ? ` ${parkCount}` : ''} parks`;
                   if (state !== 'All States' && cities.length === 0)
@@ -202,6 +204,8 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
             {/* ROW 3 — Top Performing Parks */}
             <TopPerformingParks
               parks={topParksRev}
+              parkCount={parkCount}
+              selectedParks={appliedFilters.parks || []}
               dateLabel={appliedFilters.range}
               compare={appliedFilters.compare}
               date={appliedFilters.date}

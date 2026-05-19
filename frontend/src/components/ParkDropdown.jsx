@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 
-export default function CityDropdown({ options, selected, onChange }) {
+export default function ParkDropdown({ parks, selected, onChange }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -12,14 +12,14 @@ export default function CityDropdown({ options, selected, onChange }) {
   }, []);
 
   const label = selected.length === 0
-    ? 'All Cities'
+    ? 'All Parks'
     : selected.length === 1
       ? selected[0]
       : `${selected[0]} +${selected.length - 1}`;
 
-  const toggle = (city) => {
-    const next = selected.includes(city) ? selected.filter(c => c !== city) : [...selected, city];
-    onChange(next.length === options.length ? [] : next);
+  const toggle = (name) => {
+    const next = selected.includes(name) ? selected.filter(n => n !== name) : [...selected, name];
+    onChange(next.length === parks.length ? [] : next);
   };
 
   const stop = e => e.stopPropagation();
@@ -39,7 +39,7 @@ export default function CityDropdown({ options, selected, onChange }) {
           minWidth: '100%', width: 'max-content',
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 6, boxShadow: '0 8px 20px rgba(0,0,0,.08)',
-          zIndex: 50, padding: 4, maxHeight: 220, overflowY: 'auto',
+          zIndex: 50, padding: 4, maxHeight: 240, overflowY: 'auto',
         }}>
           <label style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
@@ -54,22 +54,26 @@ export default function CityDropdown({ options, selected, onChange }) {
               onClick={stop}
               style={{ accentColor: 'var(--teal)', width: 13, height: 13, cursor: 'pointer' }}
             />
-            All Cities
+            All Parks
           </label>
           <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }}/>
-          {options.map(city => (
-            <label key={city} style={{
+          {parks.map(park => (
+            <label key={park.id} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
               borderRadius: 4, cursor: 'pointer', fontSize: 12.5, color: 'var(--ink-2)',
             }}>
               <input
                 type="checkbox"
-                checked={selected.length === 0 || selected.includes(city)}
-                onChange={() => toggle(city)}
+                checked={selected.length === 0 || selected.includes(park.name)}
+                onChange={() => toggle(park.name)}
                 onClick={stop}
-                style={{ accentColor: 'var(--teal)', width: 13, height: 13, cursor: 'pointer' }}
+                style={{ accentColor: park.color || 'var(--teal)', width: 13, height: 13, cursor: 'pointer' }}
               />
-              {city}
+              <span style={{
+                width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                background: park.color || 'var(--ink-4)',
+              }}/>
+              {park.name}
             </label>
           ))}
         </div>

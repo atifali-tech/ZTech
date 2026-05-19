@@ -37,7 +37,11 @@ async function del(path) {
 function qs(filters) {
   if (!filters) return '';
   const p = new URLSearchParams();
-  if (filters.park  && filters.park  !== 'All Parks')  p.set('park',  filters.park);
+  if (filters.parks && filters.parks.length > 0) {
+    filters.parks.forEach(pk => p.append('park', pk));
+  } else if (filters.park && filters.park !== 'All Parks') {
+    p.set('park', filters.park);
+  }
   if (filters.state && filters.state !== 'All States') p.set('state', filters.state);
   if (filters.cities && filters.cities.length > 0) filters.cities.forEach(c => p.append('city', c));
   if (filters.range)   p.set('range',   filters.range);

@@ -414,13 +414,44 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
 /* KPI 3-column grid */
 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 
-/* Top Performing Parks rows */
-.tpp-row { display: grid; grid-template-columns: 28px 12px minmax(80px,160px) 1fr 90px 64px; align-items: center; gap: 10px; padding: 7px 0; }
-.tpp-rank { font-size: 12px; font-weight: 700; color: var(--ink-4); font-family: 'JetBrains Mono', monospace; text-align: right; }
-.tpp-dot  { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-.tpp-bar-track { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
-.tpp-rev  { font-size: 13px; font-weight: 700; color: var(--ink); font-family: 'JetBrains Mono', monospace; text-align: right; }
-.tpp-trend { font-size: 11px; font-weight: 600; text-align: right; }
+/* ── Leaderboard (Top Performing Parks) ── */
+.lb-sort-btn {
+  padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--ink-3); cursor: pointer; transition: background 0.12s, color 0.12s;
+}
+.lb-sort-btn.active { background: var(--teal); color: #fff; border-color: var(--teal); }
+.lb-sort-btn:hover:not(.active) { background: var(--surface); color: var(--ink); }
+
+.lb-row {
+  display: grid; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border);
+  position: relative; overflow: hidden; isolation: isolate;
+  transition: background 0.1s;
+}
+.lb-row:last-child { border-bottom: none; }
+.lb-row:hover:not(.lb-hdr) { background: rgba(0,0,0,0.025); }
+.lb-hdr { padding: 6px 16px 8px; border-bottom: 2px solid var(--border); }
+.lb-hdr span {
+  font-size: 10px; font-weight: 700; color: var(--ink-4);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.lb-hdr span:nth-child(n+3) { text-align: right; }
+
+.lb-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  opacity: 0.05; pointer-events: none; z-index: -1;
+  transition: width 0.35s ease;
+}
+.lb-rank { display: flex; align-items: center; justify-content: center; }
+.lb-rank-num { font-size: 13px; font-weight: 700; color: var(--ink-4); font-family: 'JetBrains Mono', monospace; }
+.lb-park { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lb-dot  { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.lb-name { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-city { font-size: 11px; color: var(--ink-4); }
+.lb-val  { font-size: 13px; font-weight: 600; color: var(--ink); font-family: 'JetBrains Mono', monospace; text-align: right; }
+.lb-trend { text-align: right; }
 
 /* Busiest Hours park rows */
 .bh-park-row { display: grid; grid-template-columns: minmax(80px,180px) 72px 1fr 110px; align-items: center; gap: 10px; padding: 3px 0; }

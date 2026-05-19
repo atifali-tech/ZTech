@@ -13,11 +13,12 @@ function fmtWindow(start, end) {
 }
 
 export default function BusiestHoursCard({ busiestByPark = [], appliedFilters }) {
-  const isSinglePark = appliedFilters?.park && appliedFilters.park !== 'All Parks';
-  const compare      = !!appliedFilters?.compare;
-  const max          = Math.max(...busiestByPark.map(p => p.ticketCount), 1);
+  const selectedParks = appliedFilters?.parks || [];
+  const isSinglePark  = selectedParks.length === 1;
+  const compare       = !!appliedFilters?.compare;
+  const max           = Math.max(...busiestByPark.map(p => p.ticketCount), 1);
 
-  const title = isSinglePark ? `Busiest Window · ${appliedFilters.park}` : 'Busiest Hours by Park';
+  const title = isSinglePark ? `Busiest Window · ${selectedParks[0]}` : 'Busiest Hours by Park';
   const sub   = compare ? prevPeriodLabel(appliedFilters?.range, appliedFilters?.date, appliedFilters?.dateEnd) : '';
 
   const gridCols = compare
