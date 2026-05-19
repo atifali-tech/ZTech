@@ -1,5 +1,16 @@
 // Indian number/currency formatters — mirrors data.jsx helpers exactly
 
+export function downloadCSV(filename, headers, rows) {
+  const csv = [headers, ...rows]
+    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function inr(n) {
   if (n == null || isNaN(n)) return '₹0';
   if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + ' Cr';

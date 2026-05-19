@@ -257,7 +257,7 @@ router.get('/today-stats', async (req, res) => {
       SELECT
         COALESCE(SUM(quantity), 0)::int          AS visitors,
         COALESCE(SUM(total_amount), 0)::numeric  AS revenue,
-        COALESCE(COUNT(ticket_id), 0)::int       AS tickets
+        COALESCE(COUNT(DISTINCT ticket_id), 0)::int AS tickets
       FROM tickets
       WHERE DATE(created_at) = CURRENT_DATE
         AND status != 'Cancelled'

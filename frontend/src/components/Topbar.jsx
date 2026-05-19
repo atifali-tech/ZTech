@@ -8,9 +8,10 @@ const POLL_MS     = 60_000;
 const STALE_AFTER = 2;
 
 export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
-  const [stats, setStats] = useState(null);
-  const [stale, setStale] = useState(false);
-  const [user,  setUser]  = useState(null);
+  const [stats,    setStats]    = useState(null);
+  const [stale,    setStale]    = useState(false);
+  const [user,     setUser]     = useState(null);
+  const [spinning, setSpinning] = useState(false);
   const failCount = useRef(0);
   const inFlight  = useRef(false);
   const fetchRef  = useRef(null);
@@ -86,14 +87,18 @@ export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
           <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
           <span>
             <span className="mono" style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmt(stats?.tickets, num)}</span>
-            {' '}tickets
+            {' '}transactions
           </span>
         </div>
 
-        <button className="icon-btn" title="Refresh" onClick={() => fetchRef.current?.()}>
+        <button className={`icon-btn${spinning ? ' spinning' : ''}`} title="Refresh live stats"
+          onClick={() => {
+            setSpinning(true);
+            const delay = new Promise(r => setTimeout(r, 800));
+            Promise.all([fetchRef.current?.(), delay]).then(() => setSpinning(false));
+          }}>
           <Icon name="refresh" size={14}/>
         </button>
-        <button className="icon-btn" title="Notifications"><Icon name="bell" size={14}/></button>
 
         {user && (
           <div className="topbar-user">

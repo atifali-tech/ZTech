@@ -1,13 +1,29 @@
 'use client';
 import { useState, useCallback, useTransition } from 'react';
 import { num } from '../lib/format';
-import Icon from './Icon';
+import Icon        from './Icon';
+import { computeDefaultDates } from './FilterBar';
+import DatePicker    from './DatePicker';
+import WeekPicker    from './WeekPicker';
+import MonthPicker   from './MonthPicker';
+import QuarterPicker from './QuarterPicker';
+import YearPicker    from './YearPicker';
 
 // ─── Constants ───────────────────────────────────────────────
 const AGE_CATS   = ['', 'Adult', 'Child', 'Toddler', 'Senior Citizen'];
 const PAY_MODES  = ['', 'Cash', 'UPI', 'Card', 'Split'];
 const STATUSES   = ['', 'Completed', 'Cancelled', 'Refunded', 'Pending'];
 const PAGE_SIZES = [25, 50, 100];
+const RANGES     = ['Daily','Weekly','Monthly','Quarterly','Yearly','Last 3 Months','Last 6 Months','Last 12 Months','Custom Range'];
+const MO         = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function fmtRolling(a, b) {
+  if (!a || !b) return '';
+  const s = new Date(a + 'T00:00:00'), e = new Date(b + 'T00:00:00');
+  const sy = s.getFullYear(), ey = e.getFullYear();
+  if (sy === ey) return `${MO[s.getMonth()]} – ${MO[e.getMonth()]} ${ey}`;
+  return `${MO[s.getMonth()]} '${String(sy).slice(2)} – ${MO[e.getMonth()]} '${String(ey).slice(2)}`;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -146,20 +162,27 @@ function exportCSV(tickets) {
 function FiltersBar({ filters, setFilters, parks, onSearch }) {
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
+  const isRolling = ['Last 3 Months','Last 6 Months','Last 12 Months'].includes(filters.range);
+  const isCustom  = filters.range === 'Custom Range';
+
+  const onRangeChange = (range) => {
+    const { date, dateEnd } = computeDefaultDates(range);
+    setFilters(f => ({ ...f, range, date, dateEnd }));
+  };
+
+  const dateLabel = { Daily: 'Select Day', Weekly: 'Select Week', Monthly: 'Select Month', Quarterly: 'Select Quarter', Yearly: 'Select Year' }[filters.range] || 'Period';
+
   return (
-    <div className="filterbar">
-      <div className="filter-field" style={{ flex: 2, minWidth: 180 }}>
+    <div className="filterbar" style={{ flexWrap: 'nowrap', alignItems: 'flex-end' }}>
+      <div className="filter-field" style={{ flex: 1, minWidth: 0 }}>
         <label className="filter-label">Search</label>
-        <input
-          className="filter-input"
-          placeholder="Ticket ID (e.g. TK-ABC123)"
+        <input className="filter-input" placeholder="Ticket ID (e.g. TK-ABC123)"
           value={filters.search}
           onChange={e => set('search', e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && onSearch()}
-        />
+          onKeyDown={e => e.key === 'Enter' && onSearch()}/>
       </div>
 
-      <div className="filter-field">
+      <div className="filter-field" style={{ minWidth: 0 }}>
         <label className="filter-label">Park</label>
         <select className="filter-select" value={filters.park} onChange={e => set('park', e.target.value)}>
           <option value="">All Parks</option>
@@ -167,48 +190,67 @@ function FiltersBar({ filters, setFilters, parks, onSearch }) {
         </select>
       </div>
 
-      <div className="filter-field">
+      <div className="filter-field" style={{ minWidth: 0 }}>
         <label className="filter-label">Category</label>
         <select className="filter-select" value={filters.age} onChange={e => set('age', e.target.value)}>
           {AGE_CATS.map(v => <option key={v} value={v}>{v || 'All Categories'}</option>)}
         </select>
       </div>
 
-      <div className="filter-field">
+      <div className="filter-field" style={{ minWidth: 0 }}>
         <label className="filter-label">Payment</label>
         <select className="filter-select" value={filters.payment} onChange={e => set('payment', e.target.value)}>
           {PAY_MODES.map(v => <option key={v} value={v}>{v || 'All Modes'}</option>)}
         </select>
       </div>
 
-      <div className="filter-field">
+      <div className="filter-field" style={{ minWidth: 0 }}>
         <label className="filter-label">Status</label>
         <select className="filter-select" value={filters.status} onChange={e => set('status', e.target.value)}>
           {STATUSES.map(v => <option key={v} value={v}>{v || 'All Statuses'}</option>)}
         </select>
       </div>
 
-      <div className="filter-field">
-        <label className="filter-label">From</label>
-        <input type="date" className="filter-input" value={filters.dateFrom}
-          onChange={e => set('dateFrom', e.target.value)}/>
+      <div className="filter-field" style={{ minWidth: 0 }}>
+        <label className="filter-label">Date Range</label>
+        <select className="filter-select" value={filters.range} onChange={e => onRangeChange(e.target.value)}>
+          {RANGES.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
       </div>
 
-      <div className="filter-field">
-        <label className="filter-label">To</label>
-        <input type="date" className="filter-input" value={filters.dateTo}
-          onChange={e => set('dateTo', e.target.value)}/>
-      </div>
+      {isRolling ? (
+        <div className="filter-field" style={{ minWidth: 0 }}>
+          <label className="filter-label">Period</label>
+          <div className="picker-readonly">{fmtRolling(filters.date, filters.dateEnd)}</div>
+        </div>
+      ) : isCustom ? (
+        <div className="filter-field" style={{ minWidth: 0 }}>
+          <label className="filter-label">From – To</label>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <DatePicker value={filters.date} onChange={d => setFilters(f => ({ ...f, date: d }))}/>
+            <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>–</span>
+            <DatePicker value={filters.dateEnd} onChange={d => setFilters(f => ({ ...f, dateEnd: d }))}/>
+          </div>
+        </div>
+      ) : (
+        <div className="filter-field" style={{ minWidth: 0 }}>
+          <label className="filter-label">{dateLabel}</label>
+          {filters.range === 'Daily'     && <DatePicker    value={filters.date} onChange={d => setFilters(f => ({ ...f, date: d, dateEnd: d }))}/>}
+          {filters.range === 'Weekly'    && <WeekPicker    value={filters.date} valueEnd={filters.dateEnd} onChange={(d, de) => setFilters(f => ({ ...f, date: d, dateEnd: de }))}/>}
+          {filters.range === 'Monthly'   && <MonthPicker   value={filters.date} onChange={(d, de) => setFilters(f => ({ ...f, date: d, dateEnd: de }))}/>}
+          {filters.range === 'Quarterly' && <QuarterPicker value={filters.date} onChange={(d, de) => setFilters(f => ({ ...f, date: d, dateEnd: de }))}/>}
+          {filters.range === 'Yearly'    && <YearPicker    value={filters.date} onChange={(d, de) => setFilters(f => ({ ...f, date: d, dateEnd: de }))}/>}
+        </div>
+      )}
 
-      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', paddingBottom: 1 }}>
         <button className="btn btn-primary btn-sm" onClick={onSearch}>
           <Icon name="filter" size={12}/> Apply
         </button>
         <button className="btn btn-sm" onClick={() => {
-          setFilters({ search: '', park: '', age: '', payment: '', status: '', dateFrom: '', dateTo: '' });
-        }}>
-          Reset
-        </button>
+          const { date, dateEnd } = computeDefaultDates('Monthly');
+          setFilters({ search: '', park: '', age: '', payment: '', status: '', range: 'Monthly', date, dateEnd });
+        }}>Reset</button>
       </div>
     </div>
   );
@@ -216,8 +258,9 @@ function FiltersBar({ filters, setFilters, parks, onSearch }) {
 
 // ─── Main component ───────────────────────────────────────────
 export default function TicketsClient({ initialData, parks }) {
+  const initDates = computeDefaultDates('Monthly');
   const [data,    setData]    = useState(initialData);
-  const [filters, setFilters] = useState({ search: '', park: '', age: '', payment: '', status: '', dateFrom: '', dateTo: '' });
+  const [filters, setFilters] = useState({ search: '', park: '', age: '', payment: '', status: '', range: 'Monthly', date: initDates.date, dateEnd: initDates.dateEnd });
   const [sort,    setSort]    = useState({ col: 'created_at', dir: 'desc' });
   const [page,    setPage]    = useState(1);
   const [limit,   setLimit]   = useState(50);
@@ -235,8 +278,8 @@ export default function TicketsClient({ initialData, parks }) {
       age:      filters.age,
       payment:  filters.payment,
       status:   filters.status,
-      dateFrom: filters.dateFrom,
-      dateTo:   filters.dateTo,
+      dateFrom: filters.date,
+      dateTo:   filters.dateEnd,
       ...overrides,
     };
     Object.keys(params).forEach(k => { if (params[k] === '') delete params[k]; });
@@ -267,25 +310,27 @@ export default function TicketsClient({ initialData, parks }) {
 
   return (
     <>
-      <FiltersBar filters={filters} setFilters={setFilters} parks={parks} onSearch={handleSearch}/>
+      <div className="filter-sticky">
+        <FiltersBar filters={filters} setFilters={setFilters} parks={parks} onSearch={handleSearch}/>
 
-      {/* Summary + export bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div className="summary-bar" style={{ flex: 1, borderRadius: 8 }}>
-          <span>Showing <strong>{num(tickets.length)}</strong> of <strong>{num(summary.count)}</strong> matching tickets</span>
-          <span style={{ color: 'var(--border-strong)' }}>·</span>
-          <span>Total Revenue: <strong style={{ color: 'var(--teal)' }}>₹{summary.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
-          {pending && <span style={{ color: 'var(--ink-5)', marginLeft: 'auto', fontSize: 11 }}>Loading…</span>}
-        </div>
+        {/* Summary + export bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
+          <div className="summary-bar" style={{ flex: 1, borderRadius: 8 }}>
+            <span>Showing <strong>{num(tickets.length)}</strong> of <strong>{num(summary.count)}</strong> matching tickets</span>
+            <span style={{ color: 'var(--border-strong)' }}>·</span>
+            <span>Total Revenue: <strong style={{ color: 'var(--teal)' }}>₹{summary.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+            {pending && <span style={{ color: 'var(--ink-5)', marginLeft: 'auto', fontSize: 11 }}>Loading…</span>}
+          </div>
 
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>Per page:</span>
-          {PAGE_SIZES.map(s => (
-            <button key={s} className={'btn btn-sm' + (limit === s ? ' btn-primary' : '')} onClick={() => handleLimit(s)}>{s}</button>
-          ))}
-          <button className="btn btn-sm" onClick={() => exportCSV(tickets)} title="Export current page as CSV">
-            <Icon name="download" size={12}/> CSV
-          </button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>Per page:</span>
+            {PAGE_SIZES.map(s => (
+              <button key={s} className={'btn btn-sm' + (limit === s ? ' btn-primary' : '')} onClick={() => handleLimit(s)}>{s}</button>
+            ))}
+            <button className="btn btn-sm" onClick={() => exportCSV(tickets)} title="Export current page as CSV">
+              <Icon name="download" size={12}/> CSV
+            </button>
+          </div>
         </div>
       </div>
 

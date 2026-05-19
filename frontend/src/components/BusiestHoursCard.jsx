@@ -1,5 +1,7 @@
 'use client';
-import { num, inr, prevPeriodLabel } from '../lib/format';
+import { useState } from 'react';
+import Icon from './Icon';
+import { num, inr, prevPeriodLabel, downloadCSV } from '../lib/format';
 import { Section, Delta } from './Primitives';
 
 function fmtHour(h) {
@@ -13,6 +15,8 @@ function fmtWindow(start, end) {
 }
 
 export default function BusiestHoursCard({ busiestByPark = [], appliedFilters }) {
+  const [tableView, setTableView] = useState(false);
+
   const selectedParks = appliedFilters?.parks || [];
   const isSinglePark  = selectedParks.length === 1;
   const compare       = !!appliedFilters?.compare;
@@ -22,11 +26,48 @@ export default function BusiestHoursCard({ busiestByPark = [], appliedFilters })
   const sub   = compare ? prevPeriodLabel(appliedFilters?.range, appliedFilters?.date, appliedFilters?.dateEnd) : '';
 
   const gridCols = compare
-    ? 'minmax(80px,180px) 90px 1fr 110px 64px'
-    : undefined; // use CSS default 4-col
+    ? '2fr 110px 3fr 120px 90px'
+    : undefined;
+
+  const hasData = isSinglePark
+    ? busiestByPark[0]?.ticketCount > 0
+    : busiestByPark.length > 0;
+
+  const handleExport = () => {
+    if (isSinglePark) {
+      const p = busiestByPark[0];
+      downloadCSV('busiest-window.csv',
+        ['Park', 'Busy Window', 'Tickets', 'Revenue (INR)'],
+        [[selectedParks[0], fmtWindow(p.startHour, p.endHour), p.ticketCount, p.revenue?.toFixed(2) ?? '']],
+      );
+    } else {
+      downloadCSV('busiest-hours-by-park.csv',
+        ['Park', 'Busy Window', 'Tickets', ...(compare ? ['Trend (%)'] : [])],
+        busiestByPark.map(p => [
+          p.parkName,
+          fmtWindow(p.startHour, p.endHour),
+          p.ticketCount,
+          ...(compare ? [p.trend ?? ''] : []),
+        ]),
+      );
+    }
+  };
+
+  const actions = (
+    <div style={{ display: 'flex', gap: 6 }}>
+      {!isSinglePark && (
+        <button className="btn btn-sm icon-btn" title={tableView ? 'Default view' : 'Table view'} onClick={() => setTableView(v => !v)}>
+          <Icon name={tableView ? 'chart' : 'table'} size={13}/>
+        </button>
+      )}
+      <button className="btn btn-sm icon-btn" title="Download CSV" disabled={!hasData} onClick={handleExport}>
+        <Icon name="download" size={13}/>
+      </button>
+    </div>
+  );
 
   return (
-    <Section title={title} sub={sub}>
+    <Section title={title} sub={sub} actions={actions}>
       {isSinglePark ? (
         busiestByPark[0]?.ticketCount > 0 ? (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
@@ -49,9 +90,42 @@ export default function BusiestHoursCard({ busiestByPark = [], appliedFilters })
       ) : (
         busiestByPark.length === 0 ? (
           <div style={{ color: 'var(--ink-4)', fontSize: 12 }}>No data for this period</div>
+        ) : tableView ? (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Park</th>
+                <th>Busy Window</th>
+                <th style={{ textAlign: 'right' }}>Tickets</th>
+                {compare && <th style={{ textAlign: 'right' }}>Trend</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {busiestByPark.map(park => (
+                <tr key={park.parkId}>
+                  <td>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: park.color, flexShrink: 0, display: 'inline-block' }}/>
+                      <span style={{ fontWeight: 500 }}>{park.parkName}</span>
+                    </span>
+                  </td>
+                  <td className="mono" style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                    {fmtWindow(park.startHour, park.endHour)}
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right' }}>{num(park.ticketCount)}</td>
+                  {compare && (
+                    <td style={{ textAlign: 'right' }}>
+                      {park.trend != null
+                        ? <Delta value={park.trend}/>
+                        : <span style={{ color: 'var(--ink-5)' }}>—</span>}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {/* Column headers */}
             <div className="bh-park-row" style={{
               paddingBottom: 6, borderBottom: '1px solid var(--border)', marginBottom: 2,
               gridTemplateColumns: gridCols,
@@ -64,28 +138,15 @@ export default function BusiestHoursCard({ busiestByPark = [], appliedFilters })
             </div>
             {busiestByPark.map(park => (
               <div key={park.parkId} className="bh-park-row" style={{ gridTemplateColumns: gridCols }}>
-                <span style={{
-                  fontSize: 12, color: 'var(--ink-2)',
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                  <span style={{
-                    width: 7, height: 7, borderRadius: '50%',
-                    background: park.color, flexShrink: 0, display: 'inline-block',
-                  }}/>
+                <span style={{ fontSize: 12, color: 'var(--ink-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: park.color, flexShrink: 0, display: 'inline-block' }}/>
                   {park.parkName}
                 </span>
-                <span style={{
-                  fontSize: 12, fontWeight: 700, color: 'var(--ink)',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', fontFamily: "'JetBrains Mono', monospace" }}>
                   {fmtWindow(park.startHour, park.endHour)}
                 </span>
                 <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', borderRadius: 3,
-                    width: (park.ticketCount / max * 100) + '%',
-                    background: park.color,
-                  }}/>
+                  <div style={{ height: '100%', borderRadius: 3, width: (park.ticketCount / max * 100) + '%', background: park.color }}/>
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'right' }}>
                   {num(park.ticketCount)} tickets

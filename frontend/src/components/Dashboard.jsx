@@ -9,7 +9,7 @@ import TopPerformingParks from './TopPerformingParks';
 import { KpiCard } from './KpiRow';
 import Icon from './Icon';
 import BottomNav from './BottomNav';
-import { num, inr, inrFull, prevPeriodLabel } from '../lib/format';
+import { num, inr, inrFull, prevPeriodLabel, downloadCSV } from '../lib/format';
 import RevenuePieCard, { COLOR_MAPS, InlinePieBreakdown } from './RevenuePieCard';
 
 const today = new Date();
@@ -20,6 +20,36 @@ const DEFAULT_FILTERS = {
   parks: [], state: 'All States', cities: [],
   range: 'Monthly', date: monthStartStr, dateEnd: todayStr, compare: false,
 };
+
+function KpiTableView({ items, colLabel, formatValue }) {
+  const total = items.reduce((s, i) => s + i.value, 0);
+  const thStyle = { textAlign: 'left', color: 'var(--ink-4)', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 0', borderBottom: '1px solid var(--border)' };
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <thead>
+        <tr>
+          <th style={thStyle}>{colLabel}</th>
+          <th style={{ ...thStyle, textAlign: 'right' }}>Value</th>
+          <th style={{ ...thStyle, textAlign: 'right' }}>Share</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map(i => (
+          <tr key={i.name}>
+            <td style={{ padding: '5px 0', borderBottom: '1px solid var(--border)', color: 'var(--ink-2)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: i.color, flexShrink: 0, display: 'inline-block' }}/>
+                {i.name}
+              </span>
+            </td>
+            <td style={{ padding: '5px 0', borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 600, color: 'var(--ink)', fontFamily: "'JetBrains Mono', monospace" }}>{formatValue(i.value)}</td>
+            <td style={{ padding: '5px 0', borderBottom: '1px solid var(--border)', textAlign: 'right', color: 'var(--ink-3)', fontFamily: "'JetBrains Mono', monospace" }}>{total > 0 ? ((i.value / total) * 100).toFixed(1) : 0}%</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 function ExportMenu({ onExport }) {
   const [open, setOpen] = useState(false);
@@ -58,7 +88,8 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [loading,        setLoading]        = useState(false);
   const [exportToast,    setExportToast]    = useState(null);
-  const [parkCount, setParkCount] = useState(null);
+  const [parkCount,      setParkCount]      = useState(null);
+  const [kpiTableView,   setKpiTableView]   = useState(null); // 'revenue' | 'visitors' | 'tickets'
 
   useEffect(() => {
     api.parks().then(ps => setParkCount(ps.length)).catch(() => {});
@@ -138,11 +169,29 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
 
             {/* ROW 1 — 3 KPI cards */}
             {(() => {
-              const catTotal = (revenueSplits?.byCategory || []).reduce((s, c) => s + c.value, 0);
+              const catTotal   = (revenueSplits?.byCategory || []).reduce((s, c) => s + c.value, 0);
               const comparing  = kpis?.deltaLabel != null;
               const deltaLabel = comparing
                 ? prevPeriodLabel(appliedFilters.range, appliedFilters.date, appliedFilters.dateEnd)
                 : null;
+
+              const revItems  = (topParks?.Revenue  || []).map(p => ({ name: p.name, value: p.value, color: p.color }));
+              const visItems  = (topParks?.Footfall || []).map(p => ({ name: p.name, value: p.value, color: p.color }));
+              const tixItems  = revenueSplits?.bySource || [];
+
+              const kpiActions = (key, items, filename, headers, rowsFn) => (
+                <>
+                  <button className="btn btn-sm icon-btn" title={kpiTableView === key ? 'Chart view' : 'Table view'}
+                    onClick={() => setKpiTableView(v => v === key ? null : key)}>
+                    <Icon name={kpiTableView === key ? 'chart' : 'table'} size={13}/>
+                  </button>
+                  <button className="btn btn-sm icon-btn" title="Download CSV" disabled={!items.length}
+                    onClick={() => downloadCSV(filename, headers, rowsFn(items))}>
+                    <Icon name="download" size={13}/>
+                  </button>
+                </>
+              );
+
               return (
                 <div className="kpi-grid">
                   <KpiCard
@@ -150,30 +199,39 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
                     value={inrFull(catTotal || kpis?.totalRevenue || 0)}
                     delta={comparing ? kpis.deltaRevenue : null}
                     deltaLabel={deltaLabel}
-                    extra={<InlinePieBreakdown
-                      items={(topParks?.Revenue || []).map(p => ({ name: p.name, value: p.value, color: p.color }))}
-                      formatValue={inr}
-                    />}
+                    actions={kpiActions('revenue', revItems, 'revenue-by-park.csv',
+                      ['Park', 'Revenue (INR)', 'Share (%)'],
+                      (items) => { const t = items.reduce((s,i)=>s+i.value,0); return items.map(i=>[i.name, i.value.toFixed(2), t>0?((i.value/t)*100).toFixed(1):'0']); }
+                    )}
+                    extra={kpiTableView === 'revenue'
+                      ? <KpiTableView items={revItems} colLabel="Park" formatValue={inr}/>
+                      : <InlinePieBreakdown items={revItems} formatValue={inr}/>}
                   />
                   <KpiCard
                     label="Total Visitors" icon="users"
                     value={num(kpis?.totalVisitors)}
                     delta={comparing ? kpis.deltaVisitors : null}
                     deltaLabel={deltaLabel}
-                    extra={<InlinePieBreakdown
-                      items={(topParks?.Footfall || []).map(p => ({ name: p.name, value: p.value, color: p.color }))}
-                      formatValue={num}
-                    />}
+                    actions={kpiActions('visitors', visItems, 'visitors-by-park.csv',
+                      ['Park', 'Visitors', 'Share (%)'],
+                      (items) => { const t = items.reduce((s,i)=>s+i.value,0); return items.map(i=>[i.name, i.value, t>0?((i.value/t)*100).toFixed(1):'0']); }
+                    )}
+                    extra={kpiTableView === 'visitors'
+                      ? <KpiTableView items={visItems} colLabel="Park" formatValue={num}/>
+                      : <InlinePieBreakdown items={visItems} formatValue={num}/>}
                   />
                   <KpiCard
                     label="Ticket Transactions" icon="ticket"
                     value={num(kpis?.totalTickets)}
                     delta={comparing ? kpis.deltaTickets : null}
                     deltaLabel={deltaLabel}
-                    extra={<InlinePieBreakdown
-                      items={revenueSplits?.bySource || []}
-                      formatValue={num}
-                    />}
+                    actions={kpiActions('tickets', tixItems, 'tickets-by-source.csv',
+                      ['Source', 'Transactions', 'Share (%)'],
+                      (items) => { const t = items.reduce((s,i)=>s+i.value,0); return items.map(i=>[i.name, i.value, t>0?((i.value/t)*100).toFixed(1):'0']); }
+                    )}
+                    extra={kpiTableView === 'tickets'
+                      ? <KpiTableView items={tixItems} colLabel="Source" formatValue={num}/>
+                      : <InlinePieBreakdown items={tixItems} formatValue={num}/>}
                   />
                 </div>
               );

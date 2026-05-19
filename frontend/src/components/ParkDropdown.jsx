@@ -25,7 +25,7 @@ export default function ParkDropdown({ parks, selected, onChange }) {
   const stop = e => e.stopPropagation();
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', flex: 1, minWidth: 140 }}>
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%' }}>
       <button
         className="filter-select"
         onClick={() => setOpen(o => !o)}

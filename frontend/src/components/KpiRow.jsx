@@ -3,21 +3,24 @@ import Icon from './Icon';
 import { Delta } from './Primitives';
 import { num, inr, inrFull, formatHour } from '../lib/format';
 
-export function KpiCard({ label, icon, value, delta, deltaLabel, extra }) {
+export function KpiCard({ label, icon, value, delta, deltaLabel, extra, actions }) {
   const hasTrend = delta != null || deltaLabel;
   return (
     <div className="sec kpi">
-      <div>
-        <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
-          {icon && <Icon name={icon} size={15} color="var(--ink-4)"/>}
-          {label}
-        </div>
-        {hasTrend && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
-            {delta != null && <Delta value={delta}/>}
-            {deltaLabel && <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{deltaLabel}</span>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="kpi-label" style={{ fontWeight: 500, color: 'var(--color-text-primary, var(--ink))' }}>
+            {icon && <Icon name={icon} size={15} color="var(--ink-4)"/>}
+            {label}
           </div>
-        )}
+          {hasTrend && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+              {delta != null && <Delta value={delta}/>}
+              {deltaLabel && <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{deltaLabel}</span>}
+            </div>
+          )}
+        </div>
+        {actions && <div style={{ flexShrink: 0, display: 'flex', gap: 4 }}>{actions}</div>}
       </div>
       <div className="kpi-val">{value}</div>
       {extra && (

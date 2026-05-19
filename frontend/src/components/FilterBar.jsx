@@ -231,11 +231,11 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
         }</span>
       </button>
 
-      <button className="btn btn-ghost" onClick={onReset}>Reset</button>
-
       <button className="btn btn-primary" onClick={() => onApply()}>
         <Icon name="filter" size={13} color="#fff"/> Apply
       </button>
+
+      <button className="btn btn-ghost" onClick={onReset}>Reset</button>
 
     </div>
   );
