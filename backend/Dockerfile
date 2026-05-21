@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 # Install production dependencies only
-RUN npm ci --omit=dev
+RUN npm i --omit=dev
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
