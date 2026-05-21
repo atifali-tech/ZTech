@@ -53,7 +53,11 @@ export default function LoginPage() {
       }}>
         {/* Top: Logo */}
         <div>
-          <img src="/ztech-logo.png" alt="ZTech" style={{ height: 44, width: 'auto' }}/>
+          <svg width="120" height="48" viewBox="0 0 100 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="97" height="37" rx="3" stroke="#C0202A" strokeWidth="2.5"/>
+            <text x="9" y="30" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="26" fill="#0F1320">z</text>
+            <text x="34" y="29" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="20" fill="#C0202A">TECH</text>
+          </svg>
           <div style={{
             marginTop: 8, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.18em',
             color: '#8A92A3', textTransform: 'uppercase',

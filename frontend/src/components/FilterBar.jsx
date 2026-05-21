@@ -8,49 +8,10 @@ import WeekPicker    from './WeekPicker';
 import MonthPicker   from './MonthPicker';
 import QuarterPicker from './QuarterPicker';
 import YearPicker    from './YearPicker';
+import { api } from '../lib/api';
+import { computeDefaultDates, makeDefaultFilters } from '../lib/filterDefaults';
 
-const BASE   = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const RANGES = ['Daily','Weekly','Monthly','Quarterly','Yearly','Last 3 Months','Last 6 Months','Last 12 Months','Custom Range'];
-
-function toStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-export function computeDefaultDates(range) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const ts = toStr(today);
-  switch (range) {
-    case 'Daily':   return { date: ts, dateEnd: ts };
-    case 'Weekly': {
-      const mon = new Date(today); mon.setDate(today.getDate()-(today.getDay()+6)%7);
-      return { date: toStr(mon), dateEnd: ts };
-    }
-    case 'Monthly': {
-      const s = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { date: toStr(s), dateEnd: ts };
-    }
-    case 'Quarterly': {
-      const s = new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3, 1);
-      return { date: toStr(s), dateEnd: ts };
-    }
-    case 'Yearly': {
-      return { date: `${today.getFullYear()}-01-01`, dateEnd: ts };
-    }
-    case 'Last 3 Months': {
-      const s = new Date(today); s.setMonth(s.getMonth()-3);
-      return { date: toStr(s), dateEnd: ts };
-    }
-    case 'Last 6 Months': {
-      const s = new Date(today); s.setMonth(s.getMonth()-6);
-      return { date: toStr(s), dateEnd: ts };
-    }
-    case 'Last 12 Months': {
-      const s = new Date(today); s.setFullYear(s.getFullYear()-1);
-      return { date: toStr(s), dateEnd: ts };
-    }
-    default: return { date: ts, dateEnd: ts };
-  }
-}
 
 const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -103,16 +64,19 @@ function dateLabel(range) {
 }
 
 // ── Main FilterBar ────────────────────────────────────────────────────────────
-export default function FilterBar({ filters, setFilters, onApply, showCity = true }) {
-  const [parks, setParks] = useState([]);
+export default function FilterBar({ filters, setFilters, onApply, showCity = true, parks: parksProp }) {
+  const [parksOwned, setParksOwned] = useState([]);
 
   useEffect(() => {
-    fetch(`${BASE}/api/dashboard/parks`)
-      .then(r => r.json())
-      .then(setParks)
+    if (parksProp !== undefined) return; // parent supplies parks via useFilterState — skip fetch
+    api.parks()
+      .then(setParksOwned)
       .catch(err => console.error('[FilterBar] Failed to load parks:', err));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const parks = parksProp !== undefined ? parksProp : parksOwned;
+
+  // Server already returns only the parks this user may access — no client-side re-filter needed.
   const allStates = [...new Set(parks.map(p => p.state))].sort();
 
   const cityOptions = filters.state !== 'All States'
@@ -149,8 +113,7 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
   };
 
   const onReset = () => {
-    const { date, dateEnd } = computeDefaultDates('Monthly');
-    const resetF = { parks: [], state: 'All States', cities: [], range: 'Monthly', date, dateEnd, compare: false };
+    const resetF = makeDefaultFilters();
     setFilters(() => resetF);
     onApply(resetF);
   };

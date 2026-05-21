@@ -3,20 +3,34 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from './Icon';
+import { useAuth } from '../lib/auth-context';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-const NAV = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'grid',   href: '/' },
-  { id: 'tickets',   label: 'Tickets',   icon: 'ticket', href: '/tickets' },
-  { id: 'analytics', label: 'Analytics', icon: 'chart',  href: '/analytics' },
+const PRIMARY_NAV = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'grid',   href: '/',          perm: 'dashboard.view' },
+  { id: 'tickets',   label: 'Tickets',   icon: 'ticket', href: '/tickets',   perm: 'tickets.view'   },
+  { id: 'analytics', label: 'Analytics', icon: 'chart',  href: '/analytics', perm: 'analytics.view' },
 ];
-const SOON = [
-  { id: 'act',  label: 'Activities',        icon: 'activity' },
-  { id: 'park', label: 'Parking',           icon: 'car'      },
-  { id: 'fnb',  label: 'F&B',               icon: 'coffee'   },
-  { id: 'rep',  label: 'Reports & Exports', icon: 'file'     },
+
+const ADMIN_NAV = [
+  { id: 'parks', label: 'Parks',       icon: 'map',    href: '/admin/parks', perm: 'parks.view'  },
+  { id: 'users', label: 'Users',       icon: 'users',  href: '/admin/users', perm: 'users.view'  },
+  { id: 'roles', label: 'Roles',       icon: 'shield', href: '/admin/roles', perm: 'roles.view'  },
 ];
+
+const FINANCE_NAV = [
+  { id: 'finance-overview', label: 'Overview',        icon: 'chart',   href: '/admin/finance/overview',       perm: 'finance.view' },
+  { id: 'refunds',          label: 'Refunds',         icon: 'money',   href: '/admin/finance/refunds',        perm: 'finance.view' },
+  { id: 'settlements',      label: 'Settlements',     icon: 'lock',    href: '/admin/finance/settlements',    perm: 'finance.view' },
+  { id: 'reconciliation',   label: 'Reconciliation',  icon: 'chart',   href: '/admin/finance/reconciliation', perm: 'finance.reconcile' },
+  { id: 'finance-audit',    label: 'Finance Audit',   icon: 'file',    href: '/admin/finance/audit',          perm: 'finance.view' },
+];
+
+const REPORTS_NAV = [
+  { id: 'reports', label: 'Reports & Exports', icon: 'download', href: '/admin/reports', perm: 'reports.view' },
+];
+
 
 function ZTechLogoDark() {
   return (
@@ -28,23 +42,13 @@ function ZTechLogoDark() {
   );
 }
 
-function ZLogoIcon() {
-  return (
-    <div style={{
-      width: 30, height: 30, borderRadius: 4, border: '2px solid #C0202A',
-      display: 'grid', placeItems: 'center', flexShrink: 0,
-      fontFamily: 'Arial Black, Arial, sans-serif', fontWeight: 900, fontSize: 19, color: '#fff',
-    }}>z</div>
-  );
-}
-
 export default function Sidebar({ active = 'dashboard' }) {
   const router = useRouter();
+  const { can } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1199px)');
-
     const sync = () => {
       if (mq.matches) {
         setCollapsed(true);
@@ -55,7 +59,6 @@ export default function Sidebar({ active = 'dashboard' }) {
         document.body.classList.toggle('sb-collapsed', saved);
       }
     };
-
     sync();
     mq.addEventListener('change', sync);
     return () => mq.removeEventListener('change', sync);
@@ -74,6 +77,11 @@ export default function Sidebar({ active = 'dashboard' }) {
     await fetch(`${BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' });
     router.push('/login');
   };
+
+  const visiblePrimary  = PRIMARY_NAV.filter(it => can(it.perm));
+  const visibleAdmin    = ADMIN_NAV.filter(it => can(it.perm));
+  const visibleFinance  = FINANCE_NAV.filter(it => can(it.perm));
+  const visibleReports  = REPORTS_NAV.filter(it => can(it.perm));
 
   return (
     <aside className="sidebar">
@@ -99,7 +107,7 @@ export default function Sidebar({ active = 'dashboard' }) {
 
       {/* Primary nav */}
       <div className="sidebar-nav">
-        {NAV.map(it => (
+        {visiblePrimary.map(it => (
           <Link key={it.id} href={it.href}
             className={'nav-item' + (active === it.id ? ' active' : '')}
             data-label={it.label}>
@@ -109,17 +117,56 @@ export default function Sidebar({ active = 'dashboard' }) {
         ))}
       </div>
 
-      {/* Roadmap section */}
-      <div className="sidebar-section">Roadmap · Q3 · Q4</div>
-      <div className="sidebar-nav">
-        {SOON.map(it => (
-          <div key={it.id} className="nav-item disabled" data-label={`${it.label} · Soon`}>
-            <Icon name={it.icon} size={15}/>
-            <span>{it.label}</span>
-            <span className="nav-soon">Soon</span>
+      {/* Admin section */}
+      {visibleAdmin.length > 0 && (
+        <>
+          <div className="sidebar-section">Admin</div>
+          <div className="sidebar-nav">
+            {visibleAdmin.map(it => (
+              <Link key={it.id} href={it.href}
+                className={'nav-item' + (active === it.id ? ' active' : '')}
+                data-label={it.label}>
+                <Icon name={it.icon} size={15}/>
+                <span>{it.label}</span>
+              </Link>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
+
+      {/* Finance section */}
+      {visibleFinance.length > 0 && (
+        <>
+          <div className="sidebar-section">Finance</div>
+          <div className="sidebar-nav">
+            {visibleFinance.map(it => (
+              <Link key={it.id} href={it.href}
+                className={'nav-item' + (active === it.id ? ' active' : '')}
+                data-label={it.label}>
+                <Icon name={it.icon} size={15}/>
+                <span>{it.label}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Reports section */}
+      {visibleReports.length > 0 && (
+        <>
+          <div className="sidebar-section">Reports</div>
+          <div className="sidebar-nav">
+            {visibleReports.map(it => (
+              <Link key={it.id} href={it.href}
+                className={'nav-item' + (active === it.id ? ' active' : '')}
+                data-label={it.label}>
+                <Icon name={it.icon} size={15}/>
+                <span>{it.label}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Footer */}
       <div className="sidebar-foot">

@@ -1,8 +1,8 @@
 'use client';
-import { useState, useCallback, useTransition } from 'react';
+import { useEffect, useState, useRef, useTransition } from 'react';
 import { num } from '../lib/format';
 import Icon        from './Icon';
-import { computeDefaultDates } from './FilterBar';
+import { computeDefaultDates } from '../lib/filterDefaults';
 import DatePicker    from './DatePicker';
 import WeekPicker    from './WeekPicker';
 import MonthPicker   from './MonthPicker';
@@ -263,11 +263,13 @@ export default function TicketsClient({ initialData, parks }) {
   const [filters, setFilters] = useState({ search: '', park: '', age: '', payment: '', status: '', range: 'Monthly', date: initDates.date, dateEnd: initDates.dateEnd });
   const [sort,    setSort]    = useState({ col: 'created_at', dir: 'desc' });
   const [page,    setPage]    = useState(1);
-  const [limit,   setLimit]   = useState(50);
+  const [limit,   setLimit]   = useState(25);
   const [detail,  setDetail]  = useState(null);
   const [pending, startTransition] = useTransition();
 
-  const fetchData = useCallback(async (overrides = {}) => {
+  const fetchRef = useRef(null);
+  const didInitialFetch = useRef(false);
+  fetchRef.current = async (overrides = {}) => {
     const params = {
       page:     overrides.page    ?? page,
       limit:    overrides.limit   ?? limit,
@@ -285,22 +287,28 @@ export default function TicketsClient({ initialData, parks }) {
     Object.keys(params).forEach(k => { if (params[k] === '') delete params[k]; });
     const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const qs   = new URLSearchParams(params).toString();
-    const res  = await fetch(`${BASE}/api/tickets?${qs}`, { cache: 'no-store' });
+    const res  = await fetch(`${BASE}/api/tickets?${qs}`, { cache: 'no-store', credentials: 'include' });
     const json = await res.json();
     setData(json);
-  }, [page, limit, sort, filters]);
+  };
 
-  const handleSearch = () => { startTransition(() => { setPage(1); fetchData({ page: 1 }); }); };
+  useEffect(() => {
+    if (initialData || didInitialFetch.current) return;
+    didInitialFetch.current = true;
+    fetchRef.current?.({ page: 1, limit: 25 });
+  }, [initialData]);
+
+  const handleSearch = () => { startTransition(() => { setPage(1); fetchRef.current?.({ page: 1 }); }); };
   const handleSort   = (col) => {
     const dir = col === sort.col && sort.dir === 'desc' ? 'asc' : 'desc';
     setSort({ col, dir });
-    startTransition(() => fetchData({ sort: col, dir }));
+    startTransition(() => fetchRef.current?.({ sort: col, dir }));
   };
-  const handlePage  = (p)   => { setPage(p); startTransition(() => fetchData({ page: p })); };
-  const handleLimit = (lim) => { setLimit(lim); setPage(1); startTransition(() => fetchData({ limit: lim, page: 1 })); };
+  const handlePage  = (p)   => { setPage(p); startTransition(() => fetchRef.current?.({ page: p })); };
+  const handleLimit = (lim) => { setLimit(lim); setPage(1); startTransition(() => fetchRef.current?.({ limit: lim, page: 1 })); };
 
   const tickets    = data?.tickets    || [];
-  const pagination = data?.pagination || { page: 1, limit: 50, total: 0, totalPages: 1 };
+  const pagination = data?.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 };
   const summary    = data?.summary    || { count: 0, revenue: 0 };
 
   const totalPages = pagination.totalPages || 1;

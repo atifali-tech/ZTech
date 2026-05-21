@@ -1,16 +1,20 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Icon from './Icon';
+import NotificationBell from './NotificationBell';
 import { num, inr } from '../lib/format';
+import { useAuth } from '../lib/auth-context';
 
 const BASE        = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const POLL_MS     = 60_000;
 const STALE_AFTER = 2;
 
+const GLOBAL_ROLES = new Set(['Super Admin', 'Corporate Admin']);
+
 export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
+  const { user } = useAuth();
   const [stats,    setStats]    = useState(null);
   const [stale,    setStale]    = useState(false);
-  const [user,     setUser]     = useState(null);
   const [spinning, setSpinning] = useState(false);
   const failCount = useRef(0);
   const inFlight  = useRef(false);
@@ -23,6 +27,7 @@ export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
       try {
         const r = await fetch(`${BASE}/api/dashboard/today-stats`, { credentials: 'include' });
         if (r.status === 401) { window.location.href = '/login'; return; }
+        // 403 means no dashboard.view permission — show stale rather than redirect
         if (!r.ok) throw new Error('non-ok');
         const data = await r.json();
         setStats(data);
@@ -35,18 +40,10 @@ export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
         inFlight.current = false;
       }
     };
-
     fetchRef.current = fetchStats;
     fetchStats();
     const t = setInterval(fetchStats, POLL_MS);
     return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    fetch(`${BASE}/api/auth/me`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => d?.user && setUser(d.user))
-      .catch(() => {});
   }, []);
 
   const initials = user?.name
@@ -72,22 +69,26 @@ export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
         <div className="live-pill">
           <span className={dotClass}/>
           <span className="live-label">Live Today</span>
-          <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
-          <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>All Parks</span>
-          <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
-          <span>
-            <span className="mono" style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmt(stats?.visitors, num)}</span>
-            {' '}visitors
-          </span>
-          <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
-          <span>
-            <span className="mono" style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmt(stats?.revenue, inr)}</span>
-            {' '}revenue
-          </span>
-          <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
-          <span>
-            <span className="mono" style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmt(stats?.tickets, num)}</span>
-            {' '}transactions
+          <span className="live-pill-metrics" style={{ display: 'contents' }}>
+            <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
+            <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>
+              {GLOBAL_ROLES.has(user?.role) ? 'All Parks' : 'Your Parks'}
+            </span>
+            <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
+            <span>
+              <span className="mono" style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmt(stats?.visitors, num)}</span>
+              {' '}visitors
+            </span>
+            <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
+            <span>
+              <span className="mono" style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmt(stats?.revenue, inr)}</span>
+              {' '}revenue
+            </span>
+            <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
+            <span>
+              <span className="mono" style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmt(stats?.tickets, num)}</span>
+              {' '}transactions
+            </span>
           </span>
         </div>
 
@@ -100,11 +101,13 @@ export default function Topbar({ current = 'Dashboard', icon = 'grid' }) {
           <Icon name="refresh" size={14}/>
         </button>
 
+        <NotificationBell/>
+
         {user && (
           <div className="topbar-user">
             <div className="topbar-user-info">
               <span className="topbar-user-name">{user.name}</span>
-              <span className="topbar-user-role">{user.role.toUpperCase().replace(' ', '_')}</span>
+              <span className="topbar-user-role">{user.role.toUpperCase().replace(/ /g, '_')}</span>
             </div>
             <div className="topbar-avatar">{initials}</div>
           </div>

@@ -1,5 +1,5 @@
 'use client';
-import { useState, Fragment } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { Section } from './Primitives';
 import { num, formatHour } from '../lib/format';
 
@@ -26,13 +26,19 @@ function colorFor(v, maxV) {
 export default function Heatmap({ data, title = 'Peak Hour Heatmap', headerExtra = null }) {
   const [hover, setHover] = useState(null);
 
-  if (!data) return null;
+  const { days, hours, data: matrix } = data || {};
 
-  const { days, hours, data: matrix } = data;
-  const allVals  = matrix.flat();
-  const maxV     = Math.max(...allVals);
-  const dayTotals    = matrix.map(row => row.reduce((s, v) => s + v, 0));
-  const peakDayIdx   = dayTotals.indexOf(Math.max(...dayTotals));
+  const { maxV, peakDayIdx, colorMatrix } = useMemo(() => {
+    if (!matrix) return { maxV: 1, peakDayIdx: 0, colorMatrix: [] };
+    const allVals    = matrix.flat();
+    const maxV       = Math.max(...allVals, 1);
+    const dayTotals  = matrix.map(row => row.reduce((s, v) => s + v, 0));
+    const peakDayIdx = dayTotals.indexOf(Math.max(...dayTotals));
+    const colorMatrix = matrix.map(row => row.map(v => colorFor(v, maxV)));
+    return { maxV, peakDayIdx, colorMatrix };
+  }, [matrix]);
+
+  if (!data) return null;
 
   return (
     <Section
@@ -55,7 +61,7 @@ export default function Heatmap({ data, title = 'Peak Hour Heatmap', headerExtra
               {matrix[di].map((v, hi) => (
                 <div key={'c' + hi} className="hm-cell"
                   style={{
-                    background: colorFor(v, maxV),
+                    background: colorMatrix[di][hi],
                     border: hover && hover.di === di && hover.hi === hi ? '1.5px solid var(--ink)' : '1px solid rgba(15,19,32,0.04)',
                   }}
                   onMouseEnter={() => setHover({ di, hi, v })}
@@ -70,7 +76,7 @@ export default function Heatmap({ data, title = 'Peak Hour Heatmap', headerExtra
           <div className="tooltip" style={{ left: `calc(54px + ${(hover.hi + 0.5) * (100 / 17)}%)`, top: 28 + hover.di * 31 }}>
             <div className="t-title">{days[hover.di]} · {formatHour(hours[hover.hi])}</div>
             <div className="t-row">
-              <span className="swatch" style={{ background: colorFor(hover.v, maxV) }}/>
+              <span className="swatch" style={{ background: colorMatrix[hover.di][hover.hi] }}/>
               {num(hover.v)} visitors
             </div>
           </div>

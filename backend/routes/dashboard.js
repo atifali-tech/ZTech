@@ -3,8 +3,19 @@
  * All endpoints return data that exactly matches the dashboard design.
  */
 
-const express = require('express');
-const router  = express.Router();
+const express           = require('express');
+const router            = express.Router();
+const requirePermission = require('../middleware/permission');
+const parkScope         = require('../middleware/parkScope');
+
+// All dashboard routes require authentication, dashboard.view permission, and park-level scoping.
+// requirePermission already embeds requireAuth; spreading avoids double-middleware registration.
+router.use(...requirePermission('dashboard.view'));
+router.use(parkScope);
+
+// Inline guard for endpoints that need analytics.view (Cashier role excluded).
+// The router-level dashboard.view check already ran, so only the permission delta matters.
+const analyticsGuard = requirePermission('analytics.view')[1]; // [requireAuth, asyncGuard] → take asyncGuard
 
 // ── Filter helpers ────────────────────────────────────────────────────────────
 
@@ -72,7 +83,8 @@ function extractCities(cityParam) {
 // Build park/state/cities WHERE clauses and params array.
 // park: string | string[] — 'All Parks' or array means no single-park filter
 // cities: string[] — empty means "all cities"
-function parkSQL(park, state, cities, parkCol = 'park_id') {
+// scopedIds: string[] | null — null = no restriction (Super/Corporate Admin); [] = no access; [ids] = restrict
+function parkSQL(park, state, cities, parkCol = 'park_id', scopedIds = null) {
   const params  = [];
   const clauses = [];
   const parksArr = (Array.isArray(park) ? park : (park ? [park] : []))
@@ -97,6 +109,16 @@ function parkSQL(park, state, cities, parkCol = 'park_id') {
       params.push(...cities.map(c => c.toLowerCase()));
     }
   }
+  // Enforce row-level park access scope (non-global roles)
+  if (scopedIds !== null) {
+    if (scopedIds.length === 0) {
+      clauses.push('1 = 0'); // user has no park assignments
+    } else {
+      const phs = scopedIds.map((_, i) => `$${params.length + i + 1}`).join(', ');
+      clauses.push(`${parkCol} IN (${phs})`);
+      params.push(...scopedIds);
+    }
+  }
   return { clauses, params };
 }
 
@@ -108,7 +130,7 @@ router.get('/kpis', async (req, res) => {
   try {
     const { park, state, range, date, dateEnd, compare } = req.query;
     const cities = extractCities(req.query.city);
-    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id', req.scopedParkIds);
     const parkWhere = parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : '';
     const dateWhere = dateSQL(range, date, dateEnd, 'DATE(t.created_at)');
     const anchor    = /^\d{4}-\d{2}-\d{2}$/.test(dateEnd || '') ? `DATE '${dateEnd}'` : 'CURRENT_DATE';
@@ -244,60 +266,76 @@ router.get('/kpis', async (req, res) => {
     });
   } catch (err) {
     console.error('/kpis error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── TODAY STATS (topbar live pill) ─────────────────────────────────────────
-// GET /api/dashboard/today-stats — always current day, all parks, no filter
+// GET /api/dashboard/today-stats — current day, scoped to user's parks
 router.get('/today-stats', async (req, res) => {
-  const pool = req.app.locals.pool;
+  const pool      = req.app.locals.pool;
+  const scopedIds = req.scopedParkIds;
   try {
+    const params = [];
+    let parkFilter = '';
+    if (scopedIds !== null) {
+      if (scopedIds.length === 0) {
+        return res.json({ visitors: 0, revenue: 0, tickets: 0 });
+      }
+      const phs = scopedIds.map((_, i) => `$${i + 1}`).join(', ');
+      parkFilter = `AND park_id IN (${phs})`;
+      params.push(...scopedIds);
+    }
     const { rows } = await pool.query(`
       SELECT
-        COALESCE(SUM(quantity), 0)::int          AS visitors,
-        COALESCE(SUM(total_amount), 0)::numeric  AS revenue,
+        COALESCE(SUM(quantity), 0)::int             AS visitors,
+        COALESCE(SUM(total_amount), 0)::numeric     AS revenue,
         COALESCE(COUNT(DISTINCT ticket_id), 0)::int AS tickets
       FROM tickets
       WHERE DATE(created_at) = CURRENT_DATE
         AND status != 'Cancelled'
-    `);
+        ${parkFilter}
+    `, params);
     res.json({
-      visitors: parseInt(rows[0].visitors)    || 0,
-      revenue:  parseFloat(rows[0].revenue)   || 0,
-      tickets:  parseInt(rows[0].tickets)     || 0,
+      visitors: parseInt(rows[0].visitors)  || 0,
+      revenue:  parseFloat(rows[0].revenue) || 0,
+      tickets:  parseInt(rows[0].tickets)   || 0,
     });
   } catch (err) {
     console.error('[today-stats]', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── DEMOGRAPHICS ────────────────────────────────────────────────────────────
 // GET /api/dashboard/demographics?range=
-router.get('/demographics', async (req, res) => {
+router.get('/demographics', analyticsGuard, async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state, range, date, dateEnd } = req.query; const cities = extractCities(req.query.city);
-    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id', req.scopedParkIds);
 
     const result = await pool.query(`
-      SELECT CASE age_group
-               WHEN '0-12'  THEN 'toddler'
-               WHEN '13-17' THEN 'kid'
-               WHEN '18-35' THEN 'adult'
-               WHEN '36-60' THEN 'adult'
-               WHEN '60+'   THEN 'senior'
-             END AS age_group,
-             SUM(CASE WHEN gender = 'Male'   THEN count ELSE 0 END) AS male_count,
-             SUM(CASE WHEN gender = 'Female' THEN count ELSE 0 END) AS female_count,
-             SUM(CASE WHEN gender = 'Other'  THEN count ELSE 0 END) AS other_count,
-             SUM(count) AS total
-      FROM visitor_demographics
-      WHERE ${dateSQL(range, date, dateEnd, 'recorded_date')} ${parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : ''}
-      GROUP BY 1
-      ORDER BY
-        CASE age_group WHEN 'adult' THEN 1 WHEN 'kid' THEN 2 WHEN 'toddler' THEN 3 WHEN 'senior' THEN 4 END
+      SELECT grp                                                        AS age_group,
+             SUM(CASE WHEN gender = 'Male'   THEN count ELSE 0 END)   AS male_count,
+             SUM(CASE WHEN gender = 'Female' THEN count ELSE 0 END)   AS female_count,
+             SUM(CASE WHEN gender = 'Other'  THEN count ELSE 0 END)   AS other_count,
+             SUM(count)                                                AS total
+      FROM (
+        SELECT CASE age_group
+                 WHEN '0-12'  THEN 'toddler'
+                 WHEN '13-17' THEN 'kid'
+                 WHEN '18-35' THEN 'adult'
+                 WHEN '36-60' THEN 'adult'
+                 WHEN '60+'   THEN 'senior'
+               END                                                     AS grp,
+               gender,
+               count
+        FROM visitor_demographics
+        WHERE ${dateSQL(range, date, dateEnd, 'recorded_date')} ${parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : ''}
+      ) sub
+      GROUP BY grp
+      ORDER BY CASE grp WHEN 'adult' THEN 1 WHEN 'kid' THEN 2 WHEN 'toddler' THEN 3 WHEN 'senior' THEN 4 END
     `, params);
 
     const totalAll = result.rows.reduce((s, r) => s + parseInt(r.total), 0);
@@ -320,18 +358,18 @@ router.get('/demographics', async (req, res) => {
     });
   } catch (err) {
     console.error('/demographics error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── REVENUE SPLITS ──────────────────────────────────────────────────────────
 // GET /api/dashboard/revenue-splits?range=
-router.get('/revenue-splits', async (req, res) => {
+router.get('/revenue-splits', analyticsGuard, async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state, range, date, dateEnd, compare } = req.query; const cities = extractCities(req.query.city);
-    const { clauses: ticketParkClauses, params } = parkSQL(park, state, cities, 't.park_id');
-    const { clauses: revenueParkClauses } = parkSQL(park, state, cities, 'rc.park_id');
+    const { clauses: ticketParkClauses, params } = parkSQL(park, state, cities, 't.park_id', req.scopedParkIds);
+    const { clauses: revenueParkClauses } = parkSQL(park, state, cities, 'rc.park_id', req.scopedParkIds);
     const ticketWhere  = `${dateSQL(range, date, dateEnd, 'DATE(t.created_at)')} ${ticketParkClauses.length ? `AND ${ticketParkClauses.join(' AND ')}` : ''}`;
     const revenueWhere = `${dateSQL(range, date, dateEnd, 'rc.date')} ${revenueParkClauses.length ? `AND ${revenueParkClauses.join(' AND ')}` : ''}`;
 
@@ -431,7 +469,7 @@ router.get('/revenue-splits', async (req, res) => {
     });
   } catch (err) {
     console.error('/revenue-splits error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -445,7 +483,7 @@ router.get('/hourly', async (req, res) => {
   try {
     const { park, state, range, date, dateEnd } = req.query;
     const cities = extractCities(req.query.city);
-    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id', req.scopedParkIds);
 
     const dateWhere = dateSQL(range, date, dateEnd, 'DATE(created_at)');
     const parkWhere = parkClauses.length ? `AND ${parkClauses.join(' AND ')}` : '';
@@ -514,7 +552,7 @@ router.get('/hourly', async (req, res) => {
     res.json({ mode, labels, footfall, revenue });
   } catch (err) {
     console.error('/hourly error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -526,7 +564,7 @@ router.get('/busiest-by-park', async (req, res) => {
   try {
     const { park, state, range, date, dateEnd, compare } = req.query;
     const cities = extractCities(req.query.city);
-    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id', req.scopedParkIds);
     const dateWhere = dateSQL(range, date, dateEnd, 'DATE(t.created_at)');
     const where = `${dateWhere}${parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : ''}`;
 
@@ -605,7 +643,7 @@ router.get('/busiest-by-park', async (req, res) => {
     res.json(out);
   } catch (err) {
     console.error('/busiest-by-park error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -615,7 +653,7 @@ router.get('/heatmap', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state, range, date, dateEnd } = req.query; const cities = extractCities(req.query.city);
-    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id');
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 'park_id', req.scopedParkIds);
     const result = await pool.query(`
       SELECT ((EXTRACT(DOW FROM created_at)::int + 6) % 7) AS day_of_week,
              EXTRACT(HOUR FROM created_at)::int AS hour_of_day,
@@ -641,7 +679,7 @@ router.get('/heatmap', async (req, res) => {
     });
   } catch (err) {
     console.error('/heatmap error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -651,7 +689,7 @@ router.get('/weekend-weekday', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state, range, date, dateEnd } = req.query; const cities = extractCities(req.query.city);
-    const { clauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const { clauses, params } = parkSQL(park, state, cities, 't.park_id', req.scopedParkIds);
 
     const result = await pool.query(`
       SELECT t.park_id, p.name AS park_name, p.color_hex AS color,
@@ -682,62 +720,92 @@ router.get('/weekend-weekday', async (req, res) => {
     });
   } catch (err) {
     console.error('/weekend-weekday error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── COMPARATIVE ─────────────────────────────────────────────────────────────
 // GET /api/dashboard/comparative
-router.get('/comparative', async (req, res) => {
-  const pool = req.app.locals.pool;
+// Global roles (null scope) use pre-aggregated rollup tables for performance.
+// Park-scoped roles compute directly from tickets so park filtering applies.
+router.get('/comparative', analyticsGuard, async (req, res) => {
+  const pool      = req.app.locals.pool;
+  const scopedIds = req.scopedParkIds;
   try {
-    const [qvq, yvy] = await Promise.all([
-      pool.query(`
-        SELECT quarter,
-               SUM(CASE WHEN fiscal_year = EXTRACT(YEAR FROM NOW())::int     THEN revenue ELSE 0 END) AS curr,
-               SUM(CASE WHEN fiscal_year = EXTRACT(YEAR FROM NOW())::int - 1 THEN revenue ELSE 0 END) AS prev
-        FROM quarterly_revenue
-        GROUP BY quarter
-        ORDER BY quarter
-      `),
-      pool.query(`
-        SELECT month,
-               SUM(CASE WHEN year = EXTRACT(YEAR FROM NOW())::int     THEN revenue ELSE 0 END) AS curr,
-               SUM(CASE WHEN year = EXTRACT(YEAR FROM NOW())::int - 1 THEN revenue ELSE 0 END) AS prev
-        FROM monthly_revenue
-        GROUP BY month
-        ORDER BY month
-      `),
-    ]);
-
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+    if (scopedIds === null) {
+      // Global role — use pre-aggregated tables (fast path)
+      const [qvq, yvy] = await Promise.all([
+        pool.query(`
+          SELECT quarter,
+                 SUM(CASE WHEN fiscal_year = EXTRACT(YEAR FROM NOW())::int     THEN revenue ELSE 0 END) AS curr,
+                 SUM(CASE WHEN fiscal_year = EXTRACT(YEAR FROM NOW())::int - 1 THEN revenue ELSE 0 END) AS prev
+          FROM quarterly_revenue
+          GROUP BY quarter
+          ORDER BY quarter
+        `),
+        pool.query(`
+          SELECT month,
+                 SUM(CASE WHEN year = EXTRACT(YEAR FROM NOW())::int     THEN revenue ELSE 0 END) AS curr,
+                 SUM(CASE WHEN year = EXTRACT(YEAR FROM NOW())::int - 1 THEN revenue ELSE 0 END) AS prev
+          FROM monthly_revenue
+          GROUP BY month
+          ORDER BY month
+        `),
+      ]);
+      return res.json({
+        qvq: qvq.rows.map(r => ({ q: `Q${r.quarter}`, curr: parseFloat(r.curr), prev: parseFloat(r.prev) })),
+        yvy: yvy.rows.map(r => ({ m: MONTHS[parseInt(r.month) - 1], curr: parseFloat(r.curr), prev: parseFloat(r.prev) })),
+      });
+    }
+
+    // Park-scoped role — compute from tickets with park filter
+    if (scopedIds.length === 0) {
+      return res.json({ qvq: [], yvy: [] });
+    }
+    const phs    = scopedIds.map((_, i) => `$${i + 1}`).join(', ');
+    const params = [...scopedIds];
+
+    const [qvq, yvy] = await Promise.all([
+      pool.query(`
+        SELECT EXTRACT(QUARTER FROM created_at)::int AS quarter,
+               SUM(CASE WHEN EXTRACT(YEAR FROM created_at)::int = EXTRACT(YEAR FROM NOW())::int     THEN total_amount ELSE 0 END) AS curr,
+               SUM(CASE WHEN EXTRACT(YEAR FROM created_at)::int = EXTRACT(YEAR FROM NOW())::int - 1 THEN total_amount ELSE 0 END) AS prev
+        FROM tickets
+        WHERE park_id IN (${phs})
+        GROUP BY 1
+        ORDER BY 1
+      `, params),
+      pool.query(`
+        SELECT EXTRACT(MONTH FROM created_at)::int AS month,
+               SUM(CASE WHEN EXTRACT(YEAR FROM created_at)::int = EXTRACT(YEAR FROM NOW())::int     THEN total_amount ELSE 0 END) AS curr,
+               SUM(CASE WHEN EXTRACT(YEAR FROM created_at)::int = EXTRACT(YEAR FROM NOW())::int - 1 THEN total_amount ELSE 0 END) AS prev
+        FROM tickets
+        WHERE park_id IN (${phs})
+        GROUP BY 1
+        ORDER BY 1
+      `, params),
+    ]);
+
     res.json({
-      qvq: qvq.rows.map(r => ({
-        q:    `Q${r.quarter}`,
-        curr: parseFloat(r.curr),
-        prev: parseFloat(r.prev),
-      })),
-      yvy: yvy.rows.map(r => ({
-        m:    MONTHS[parseInt(r.month) - 1],
-        curr: parseFloat(r.curr),
-        prev: parseFloat(r.prev),
-      })),
+      qvq: qvq.rows.map(r => ({ q: `Q${r.quarter}`, curr: parseFloat(r.curr), prev: parseFloat(r.prev) })),
+      yvy: yvy.rows.map(r => ({ m: MONTHS[parseInt(r.month) - 1], curr: parseFloat(r.curr), prev: parseFloat(r.prev) })),
     });
   } catch (err) {
     console.error('/comparative error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── TOP PARKS ───────────────────────────────────────────────────────────────
 // GET /api/dashboard/top-parks?park=&state=&city=
-router.get('/top-parks', async (req, res) => {
+router.get('/top-parks', analyticsGuard, async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state, range, date, dateEnd } = req.query; const cities = extractCities(req.query.city);
-    const { clauses: ticketParkClauses, params } = parkSQL(park, state, cities, 't.park_id');
-    const { clauses: revenueParkClauses } = parkSQL(park, state, cities, 'rc.park_id');
+    const { clauses: ticketParkClauses, params } = parkSQL(park, state, cities, 't.park_id', req.scopedParkIds);
+    const { clauses: revenueParkClauses } = parkSQL(park, state, cities, 'rc.park_id', req.scopedParkIds);
     const ticketWhere  = `${dateSQL(range, date, dateEnd, 'DATE(t.created_at)')} ${ticketParkClauses.length ? `AND ${ticketParkClauses.join(' AND ')}` : ''}`;
     const revenueWhere = `${dateSQL(range, date, dateEnd, 'rc.date')} ${revenueParkClauses.length ? `AND ${revenueParkClauses.join(' AND ')}` : ''}`;
 
@@ -793,18 +861,18 @@ router.get('/top-parks', async (req, res) => {
     res.json(grouped);
   } catch (err) {
     console.error('/top-parks error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── TOP PARKS REVENUE (with trend) ─────────────────────────────────────────
 // GET /api/dashboard/top-parks-revenue
-router.get('/top-parks-revenue', async (req, res) => {
+router.get('/top-parks-revenue', analyticsGuard, async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state, range, date, dateEnd } = req.query;
     const cities = extractCities(req.query.city);
-    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id');
+    const { clauses: parkClauses, params } = parkSQL(park, state, cities, 't.park_id', req.scopedParkIds);
     const dateWhere     = dateSQL(range, date, dateEnd, 'DATE(t.created_at)');
     const prevDateWhere = prevDateSQL(range, date, dateEnd, 'DATE(t.created_at)');
     const parkWhere     = parkClauses.length ? ` AND ${parkClauses.join(' AND ')}` : '';
@@ -858,7 +926,7 @@ router.get('/top-parks-revenue', async (req, res) => {
     }));
   } catch (err) {
     console.error('/top-parks-revenue error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -868,7 +936,7 @@ router.get('/revenue-trend', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
     const { park, state } = req.query; const cities = extractCities(req.query.city);
-    const { clauses, params } = parkSQL(park, state, cities, 'rt.park_id');
+    const { clauses, params } = parkSQL(park, state, cities, 'rt.park_id', req.scopedParkIds);
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
     const result = await pool.query(`
@@ -905,22 +973,32 @@ router.get('/revenue-trend', async (req, res) => {
     });
   } catch (err) {
     console.error('/revenue-trend error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── PARKS LIST ──────────────────────────────────────────────────────────────
-// GET /api/dashboard/parks
+// GET /api/dashboard/parks — scoped to user's assigned parks
 router.get('/parks', async (req, res) => {
-  const pool = req.app.locals.pool;
+  const pool      = req.app.locals.pool;
+  const scopedIds = req.scopedParkIds;
   try {
+    const params = [];
+    let whereClause = '';
+    if (scopedIds !== null) {
+      if (scopedIds.length === 0) return res.json([]);
+      const phs = scopedIds.map((_, i) => `$${i + 1}`).join(', ');
+      whereClause = `WHERE id IN (${phs})`;
+      params.push(...scopedIds);
+    }
     const result = await pool.query(
-      `SELECT id, name, city, state, color_hex AS color FROM parks ORDER BY state, city, name`
+      `SELECT id, name, city, state, color_hex AS color FROM parks ${whereClause} ORDER BY state, city, name`,
+      params
     );
     res.json(result.rows);
   } catch (err) {
     console.error('/parks error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

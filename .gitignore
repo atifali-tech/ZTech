@@ -24,6 +24,13 @@ backend/dist/
 backend/.env
 frontend/.env*
 
+# logs (PM2 writes here — keep the directory, not the files)
+logs/*.log
+
+# docker production env override
+.env.prod
+docker-compose.override.yml
+
 # misc
 .DS_Store
 *.pem

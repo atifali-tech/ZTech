@@ -25,6 +25,21 @@ const PATHS = {
   toddler:  <><circle cx="12" cy="7" r="2.5"/><path d="M8 21v-5l-2-2 3-4h6l3 4-2 2v5"/></>,
   kid:      <><circle cx="12" cy="6" r="2.5"/><path d="M8 21v-7H6v-3l3-3h6l3 3v3h-2v7"/></>,
   adult:    <><circle cx="12" cy="6" r="2.5"/><path d="M7 21v-9l-2-2 3-2h8l3 2-2 2v9"/></>,
+  shield:   <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>,
+  map:      <><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></>,
+  key:      <><circle cx="8" cy="15" r="4"/><path d="M15 8l6 6"/><path d="M17.5 10.5L21 7"/><path d="M15 14l2-2"/></>,
+  money:    <><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/></>,
+  checkCircle: <><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-5"/></>,
+  xCircle:  <><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></>,
+  lock:     <><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></>,
+  unlock:   <><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0"/></>,
+  warning:  <><path d="M12 2L2 20h20L12 2z"/><path d="M12 9v5"/><circle cx="12" cy="17.5" r=".5" fill="currentColor"/></>,
+  arrowUp:  <><path d="M12 20V4M5 11l7-7 7 7"/></>,
+  arrowDown:<><path d="M12 4v16M5 13l7 7 7-7"/></>,
+  send:     <><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></>,
+  trash:    <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></>,
+  check:    <><path d="M4 12l5 5L20 7"/></>,
+  x:        <><path d="M18 6L6 18M6 6l12 12"/></>,
 };
 
 export default function Icon({ name, size = 16, color = 'currentColor', strokeWidth = 1.6 }) {

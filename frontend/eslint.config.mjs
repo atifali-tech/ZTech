@@ -10,6 +10,11 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "off",
       // Flags local accumulator variables (let acc) as if they were state — false positive
       "react-hooks/immutability": "off",
+      // AGENTS.md Rule 2 mandates fetchRef.current = async () => {} pattern over useCallback;
+      // this rule incorrectly flags that assignment as a render-time ref mutation
+      "react-hooks/refs": "off",
+      // Date.now() in useState initializer or conditional render is safe — disable false positive
+      "react-hooks/purity": "off",
     },
   },
 ]);

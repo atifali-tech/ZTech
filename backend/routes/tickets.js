@@ -7,8 +7,11 @@
 // POST /api/tickets/batch  — create multiple bookings (offline sync)
 // GET  /api/tickets        — paginated, filterable list
 // ═══════════════════════════════════════════════════════════════
-const express = require('express');
-const router  = express.Router();
+const express           = require('express');
+const router            = express.Router();
+const requirePermission = require('../middleware/permission');
+const parkScope         = require('../middleware/parkScope');
+const settledPeriod     = require('../middleware/settledPeriod');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -40,8 +43,9 @@ function validateBooking(t) {
 
   if (!t.ticket_id)
     errors.push('ticket_id: required');
-  if (!t.park_id || !/^[0-9a-f-]{36}$/.test(t.park_id))
-    errors.push('park_id: required, must be a valid UUID');
+  // park_id is VARCHAR(10) — e.g. "ZP001". Accept any non-empty string.
+  if (!t.park_id || typeof t.park_id !== 'string' || !t.park_id.trim())
+    errors.push('park_id: required');
 
   const vs = t.visitor_summary;
   if (!vs || typeof vs !== 'object')
@@ -184,7 +188,7 @@ async function insertRow(pool, r) {
 
 // ─── POST /api/tickets ────────────────────────────────────────────────────────
 
-router.post('/', async (req, res) => {
+router.post('/', [...requirePermission('tickets.create'), parkScope, settledPeriod], async (req, res) => {
   const pool = req.app.locals.pool;
   const t    = req.body;
 
@@ -193,6 +197,14 @@ router.post('/', async (req, res) => {
 
   const errors = validateBooking(t);
   if (errors.length) return res.status(400).json({ error: 'Validation failed', details: errors });
+
+  // Park scope: ensure the authenticated user may write to this park
+  if (req.scopedParkIds !== null && !req.scopedParkIds.includes(t.park_id)) {
+    return res.status(403).json({ error: 'Access denied: park not in your scope' });
+  }
+
+  // Stamp the authenticated user as cashier — prevents ID forgery
+  t.cashier_id = req.user.id;
 
   const rows = expandBooking(t);
   if (rows.length === 0)
@@ -220,13 +232,13 @@ router.post('/', async (req, res) => {
   } catch (err) {
     if (err.code === '23503') return res.status(400).json({ error: 'park_id does not exist' });
     console.error('[POST /tickets]', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ─── POST /api/tickets/batch ──────────────────────────────────────────────────
 
-router.post('/batch', async (req, res) => {
+router.post('/batch', [...requirePermission('tickets.create'), parkScope], async (req, res) => {
   const pool     = req.app.locals.pool;
   const bookings = req.body;
 
@@ -235,7 +247,8 @@ router.post('/batch', async (req, res) => {
   if (bookings.length > 500)
     return res.status(400).json({ error: 'Batch limit is 500 bookings per request' });
 
-  const results = { inserted: 0, skipped: 0, errors: [] };
+  const scopedSet = req.scopedParkIds !== null ? new Set(req.scopedParkIds) : null;
+  const results   = { inserted: 0, skipped: 0, errors: [] };
 
   for (let i = 0; i < bookings.length; i++) {
     const t      = bookings[i];
@@ -244,6 +257,15 @@ router.post('/batch', async (req, res) => {
       results.errors.push({ index: i, ticket_id: t.ticket_id, details: errors });
       continue;
     }
+
+    // Park scope enforcement per booking
+    if (scopedSet && !scopedSet.has(t.park_id)) {
+      results.errors.push({ index: i, ticket_id: t.ticket_id, error: 'Access denied: park not in your scope' });
+      continue;
+    }
+
+    // Stamp authenticated user as cashier
+    t.cashier_id = req.user.id;
 
     const rows = expandBooking(t);
     for (const row of rows) {
@@ -267,11 +289,11 @@ const ALLOWED_SORT_COLS = new Set([
   'quantity', 'total_amount', 'payment_mode', 'status',
 ]);
 
-router.get('/', async (req, res) => {
+router.get('/', [requirePermission('tickets.view'), parkScope], async (req, res) => {
   const pool = req.app.locals.pool;
 
   const page   = Math.max(1, parseInt(req.query.page)  || 1);
-  const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+  const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
   const offset = (page - 1) * limit;
 
   const search      = (req.query.search   || '').trim();
@@ -289,6 +311,17 @@ router.get('/', async (req, res) => {
 
   const conditions = ['1=1'];
   const params     = [];
+
+  // Park-level access scope — restrict to user's assigned parks
+  if (req.scopedParkIds !== null) {
+    if (req.scopedParkIds.length === 0) {
+      conditions.push('1 = 0');
+    } else {
+      const phs = req.scopedParkIds.map((_, i) => `$${params.length + i + 1}`).join(', ');
+      conditions.push(`t.park_id IN (${phs})`);
+      params.push(...req.scopedParkIds);
+    }
+  }
 
   if (search) {
     params.push(`%${search}%`);
@@ -393,7 +426,7 @@ router.get('/', async (req, res) => {
     });
   } catch (err) {
     console.error('[GET /tickets]', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

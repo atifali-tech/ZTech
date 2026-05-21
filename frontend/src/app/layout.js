@@ -1,4 +1,5 @@
 import "./globals.css";
+import AuthProvider from '../components/AuthProvider';
 
 export const metadata = {
   title: "ZTech — Operations Dashboard",
@@ -13,7 +14,9 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

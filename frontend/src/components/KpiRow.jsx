@@ -1,10 +1,110 @@
 'use client';
+import { useState } from 'react';
 import Icon from './Icon';
-import { Delta } from './Primitives';
+import { Sparkline, Delta } from './Primitives';
 import { num, inr, inrFull, formatHour } from '../lib/format';
 
-export function KpiCard({ label, icon, value, delta, deltaLabel, extra, actions }) {
-  const hasTrend = delta != null || deltaLabel;
+const SOFT_DONUT_COLORS = ['#5E8FA8', '#74A690', '#D7A85B', '#B785A7', '#8C93BF', '#D08178', '#6FA6A3'];
+
+function compactValue(n, currency = false) {
+  const v = Number(n) || 0;
+  if (currency) {
+    if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+    if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+    if (v >= 1000) return `₹${(v / 1000).toFixed(1)}K`;
+    return `₹${Math.round(v)}`;
+  }
+  if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+  if (v >= 100000) return `${(v / 100000).toFixed(1)}L`;
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+  return v.toLocaleString('en-IN');
+}
+
+export function ModernDonut({ rows = [], centerLabel = 'Total', centerValue, formatValue, currency = false }) {
+  const [active, setActive] = useState(null);
+  const cleaned = rows
+    .filter(r => Number(r.value) > 0)
+    .slice(0, 5)
+    .map((r, i) => ({ ...r, color: SOFT_DONUT_COLORS[i % SOFT_DONUT_COLORS.length] }));
+  const total = cleaned.reduce((s, r) => s + Number(r.value || 0), 0);
+  const size = 126;
+  const thickness = 10;
+  const radius = (size - thickness) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circ = 2 * Math.PI * radius;
+  const fmt = formatValue || ((v) => compactValue(v, currency));
+  const { slices } = cleaned.reduce((state, r, i) => {
+    const frac = total > 0 ? Number(r.value) / total : 0;
+    const len = frac * circ;
+    return {
+      acc: state.acc + len,
+      slices: [
+        ...state.slices,
+        {
+          ...r,
+          frac,
+          dash: `${Math.max(len - 1.5, 0)} ${circ - Math.max(len - 1.5, 0)}`,
+          offset: -state.acc,
+          active: active === i,
+        },
+      ],
+    };
+  }, { acc: 0, slices: [] });
+
+  if (total <= 0) {
+    return <div className="kpi-donut-empty">No data for this period</div>;
+  }
+
+  return (
+    <div className="kpi-donut">
+      <div className="kpi-donut-chart">
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#EEF1F4" strokeWidth={thickness}/>
+          {slices.map((s, i) => (
+            <circle
+              key={s.name ?? i}
+              cx={cx}
+              cy={cy}
+              r={radius}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={s.active ? thickness + 2 : thickness}
+              strokeDasharray={s.dash}
+              strokeDashoffset={s.offset}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${cx} ${cy})`}
+              className="kpi-donut-slice"
+              onMouseEnter={() => setActive(i)}
+              onMouseLeave={() => setActive(null)}
+            />
+          ))}
+          <text x={cx} y={cy - 6} className="kpi-donut-center-label">{centerLabel}</text>
+          <text x={cx} y={cy + 13} className="kpi-donut-center-value">{centerValue || compactValue(total, currency)}</text>
+        </svg>
+      </div>
+      <div className="kpi-donut-legend">
+        {slices.map((s, i) => (
+          <div
+            key={s.name ?? i}
+            className={'kpi-donut-legend-row' + (active === i ? ' active' : '')}
+            onMouseEnter={() => setActive(i)}
+            onMouseLeave={() => setActive(null)}
+          >
+            <span className="kpi-donut-swatch" style={{ background: s.color }}/>
+            <span className="kpi-donut-name">{s.name}</span>
+            <span className="kpi-donut-val">{fmt(s.value)}</span>
+            <span className="kpi-donut-pct">{(s.frac * 100).toFixed(0)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function KpiCard({ label, icon, value, delta, deltaLabel, extra, actions, sparkData, sparkColor }) {
+  const hasTrend  = delta != null || deltaLabel;
+  const hasSpark  = sparkData && sparkData.length > 2;
   return (
     <div className="sec kpi">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
@@ -22,9 +122,18 @@ export function KpiCard({ label, icon, value, delta, deltaLabel, extra, actions 
         </div>
         {actions && <div style={{ flexShrink: 0, display: 'flex', gap: 4 }}>{actions}</div>}
       </div>
-      <div className="kpi-val">{value}</div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, marginTop: 8 }}>
+        <div className="kpi-val" style={{ marginTop: 0, lineHeight: 1, fontWeight: 700 }}>{value}</div>
+        {hasSpark && (
+          <div style={{ flexShrink: 0, marginBottom: 3 }}>
+            <Sparkline data={sparkData} color={sparkColor || 'var(--teal)'} width={84} height={28}/>
+          </div>
+        )}
+      </div>
+
       {extra && (
-        <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', padding: '8px 0' }}>
+        <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', padding: '10px 0 0' }}>
           {extra}
         </div>
       )}

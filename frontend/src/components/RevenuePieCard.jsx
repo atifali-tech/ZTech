@@ -43,17 +43,16 @@ function PieLegendRow({ label, value, color, formatValue, compact = false }) {
 
 const KDI_CSS = `
   .kdi-wrap { container-type: inline-size; }
-  .kdi-inner { display: flex; align-items: flex-start; gap: 8px; }
-  .kdi-chart { width: 55%; display: flex; justify-content: flex-start; flex-shrink: 0; }
-  .kdi-legend { width: 45%; min-width: 0; }
-  .kdi-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
-  .kdi-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
-  .kdi-name { font-size: 11px; color: var(--ink-2); white-space: nowrap; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .kdi-val  { font-size: 11px; font-weight: 600; color: var(--ink); font-family: 'JetBrains Mono', monospace; white-space: nowrap; flex-shrink: 0; }
+  .kdi-inner { display: flex; flex-direction: row; align-items: center; }
+  .kdi-chart { flex: 0 0 56%; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+  .kdi-legend { flex: 1; min-width: 0; padding-left: 16px; display: flex; flex-direction: column; justify-content: center; }
+  .kdi-item { display: flex; align-items: center; gap: 6px; line-height: 1.8; }
+  .kdi-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+  .kdi-name { font-size: 13px; color: var(--ink-2); white-space: nowrap; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   @container (max-width: 280px) {
     .kdi-inner  { flex-direction: column; align-items: center; }
-    .kdi-chart  { width: 100%; justify-content: center; }
-    .kdi-legend { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+    .kdi-chart  { flex: 0 0 auto; overflow: visible; }
+    .kdi-legend { width: 100%; padding-left: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
   }
   @container (max-width: 180px) {
     .kdi-legend { display: flex; flex-direction: column; }
@@ -70,14 +69,13 @@ export function InlinePieBreakdown({ items = [], colorMap = {}, formatValue = in
       <style>{KDI_CSS}</style>
       <div className="kdi-inner">
         <div className="kdi-chart">
-          <DonutChart items={mapped} total={total} size={160}/>
+          <DonutChart items={mapped} total={total} size={175}/>
         </div>
         <div className="kdi-legend">
           {mapped.slice(0, 7).map(i => (
             <div key={i.name} className="kdi-item">
               <span className="kdi-dot" style={{ background: i.color }}/>
-              <span className="kdi-name" title={i.name === 'Others' ? 'Split' : i.name}>{i.name === 'Others' ? 'Split' : i.name}:</span>
-              <span className="kdi-val">{formatValue(i.value)}</span>
+              <span className="kdi-name">{i.name === 'Others' ? 'Split' : i.name}</span>
             </div>
           ))}
         </div>
@@ -88,9 +86,9 @@ export function InlinePieBreakdown({ items = [], colorMap = {}, formatValue = in
 
 const RPC_CSS = `
   .rpc-wrap { container-type: inline-size; }
-  .rpc-inner { display: flex; align-items: center; gap: 8px; }
-  .rpc-chart { width: 50%; display: flex; justify-content: center; flex-shrink: 0; }
-  .rpc-legend { width: 50%; min-width: 0; }
+  .rpc-inner { display: flex; flex-direction: row; align-items: center; }
+  .rpc-chart { flex: 0 0 52%; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+  .rpc-legend { flex: 1; min-width: 0; padding-left: 20px; }
   .rpc-item { display: flex; align-items: center; gap: 4px; padding: 3px 0; }
   .rpc-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
   .rpc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
@@ -190,7 +188,7 @@ export default function RevenuePieCard({ title, items = [], colorMap = {}, compa
             <style>{RPC_CSS}</style>
             <div className="rpc-inner">
               <div className="rpc-chart">
-                <DonutChart items={mapped} total={total} size={200}/>
+                <DonutChart items={mapped} total={total} size={180}/>
               </div>
               <div className="rpc-legend">
                 {mapped.map(i => {

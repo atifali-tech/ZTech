@@ -1,14 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-
-const today = new Date();
-const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-
-const DEFAULT_FILTERS = {
-  park: 'All Parks', state: 'All States', cities: [],
-  range: 'Monthly', date: todayStr, dateEnd: todayStr, compare: false,
-};
+import { useFilterState, scopeLabel, makeDefaultFilters } from '../lib/useFilterState';
 import FilterBar from './FilterBar';
 import HourlyChart from './HourlyChart';
 import DemographicsSection from './Demographics';
@@ -22,7 +15,7 @@ import { inr, num, formatHour } from '../lib/format';
 
 const TABS = ['Footfall', 'Revenue', 'Demographics', 'Trends'];
 
-// ── CSV helper ────────────────────────────────────────────────
+// ── CSV helper ─────────────────────────────────────────────────────────────────
 function dl(rows, filename) {
   const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -31,9 +24,7 @@ function dl(rows, filename) {
   URL.revokeObjectURL(url);
 }
 
-// ── Control row: title + Chart|Table toggle + CSV ─────────────
-// subtle=true → used as group label above multi-card chart grids (smaller, muted)
-// subtle=false → used as table-mode header (prominent)
+// ── Section header: title + Chart|Table toggle + CSV ──────────────────────────
 function CtrlRow({ title, ctrl, subtle = false }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -52,7 +43,7 @@ function CtrlRow({ title, ctrl, subtle = false }) {
   );
 }
 
-// ── Simple table ──────────────────────────────────────────────
+// ── Simple data table ──────────────────────────────────────────────────────────
 function SimpleTable({ headers, rows, mono = [] }) {
   return (
     <div className="sec" style={{ overflow: 'auto' }}>
@@ -74,7 +65,7 @@ function SimpleTable({ headers, rows, mono = [] }) {
   );
 }
 
-// ── Table views ───────────────────────────────────────────────
+// ── Table views ────────────────────────────────────────────────────────────────
 function WwdFootfallTable({ data }) {
   if (!data) return null;
   return (
@@ -85,7 +76,7 @@ function WwdFootfallTable({ data }) {
         d.park,
         num(d.weekend),
         num(d.weekday),
-        `+${((d.weekend - d.weekday) / d.weekday * 100).toFixed(1)}%`,
+        d.weekday > 0 ? `+${((d.weekend - d.weekday) / d.weekday * 100).toFixed(1)}%` : '—',
       ])}
     />
   );
@@ -101,7 +92,7 @@ function WwdRevenueTable({ data }) {
         d.park,
         inr(d.weekend),
         inr(d.weekday),
-        `+${((d.weekend - d.weekday) / d.weekday * 100).toFixed(1)}%`,
+        d.weekday > 0 ? `+${((d.weekend - d.weekday) / d.weekday * 100).toFixed(1)}%` : '—',
       ])}
     />
   );
@@ -146,13 +137,13 @@ function RevenueSplitsTable({ data }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {sections.map(s => {
-        const total = s.rows.reduce((sum, r) => sum + r.value, 0);
+        const total = (s.rows || []).reduce((sum, r) => sum + r.value, 0);
         return (
           <SimpleTable
             key={s.label}
             headers={[s.label, 'Amount', '% of Total']}
             mono={[1, 2]}
-            rows={s.rows.map(r => [r.name, inr(r.value), `${(r.value / total * 100).toFixed(1)}%`])}
+            rows={(s.rows || []).map(r => [r.name, inr(r.value), total > 0 ? `${(r.value / total * 100).toFixed(1)}%` : '0%'])}
           />
         );
       })}
@@ -162,18 +153,18 @@ function RevenueSplitsTable({ data }) {
 
 function ComparativeTable({ data }) {
   if (!data) return null;
-  const pct = (curr, prev) => `${curr >= prev ? '+' : ''}${((curr - prev) / prev * 100).toFixed(1)}%`;
+  const pct = (curr, prev) => prev > 0 ? `${curr >= prev ? '+' : ''}${((curr - prev) / prev * 100).toFixed(1)}%` : '—';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <SimpleTable
         headers={['Quarter', 'FY26', 'FY25', 'Change']}
         mono={[1, 2, 3]}
-        rows={data.qvq.map(d => [d.q, inr(d.curr), inr(d.prev), pct(d.curr, d.prev)])}
+        rows={(data.qvq || []).map(d => [d.q, inr(d.curr), inr(d.prev), pct(d.curr, d.prev)])}
       />
       <SimpleTable
         headers={['Month', '2026', '2025', 'Change']}
         mono={[1, 2, 3]}
-        rows={data.yvy.map(d => [d.m, inr(d.curr), inr(d.prev), pct(d.curr, d.prev)])}
+        rows={(data.yvy || []).map(d => [d.m, inr(d.curr), inr(d.prev), pct(d.curr, d.prev)])}
       />
     </div>
   );
@@ -185,13 +176,13 @@ function DemographicsTable({ data }) {
     <SimpleTable
       headers={['Age Group', 'Total', 'Male', 'Female', 'Other', '% Share']}
       mono={[1, 2, 3, 4, 5]}
-      rows={data.demographics.map(d => [d.name, num(d.total), num(d.m), num(d.f), num(d.o), `${d.pct.toFixed(1)}%`])}
+      rows={(data.demographics || []).map(d => [d.name, num(d.total), num(d.m), num(d.f), num(d.o), `${d.pct.toFixed(1)}%`])}
     />
   );
 }
 
-// ── CSV generators ─────────────────────────────────────────────
-const pct = (a, b) => `+${((a - b) / b * 100).toFixed(1)}%`;
+// ── CSV generators ─────────────────────────────────────────────────────────────
+const pct = (a, b) => b > 0 ? `+${((a - b) / b * 100).toFixed(1)}%` : '—';
 
 function csvWwdFootfall(wd) {
   dl([
@@ -234,7 +225,7 @@ function csvWwdRevenue(wd) {
 }
 
 function csvComparative(cp) {
-  const chg = (curr, prev) => `${curr >= prev ? '+' : ''}${((curr - prev) / prev * 100).toFixed(1)}%`;
+  const chg = (curr, prev) => prev > 0 ? `${curr >= prev ? '+' : ''}${((curr - prev) / prev * 100).toFixed(1)}%` : '—';
   dl([
     ['Type', 'Period', 'Current', 'Previous', 'Change%'],
     ...(cp?.qvq || []).map(d => ['QvQ', d.q, d.curr, d.prev, chg(d.curr, d.prev)]),
@@ -249,7 +240,7 @@ function csvDemographics(demo) {
   ], 'demographics.csv');
 }
 
-// ── Main ──────────────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────────────────────
 export default function AnalyticsClient({
   demographics:   initDemographics,
   revenueSplits:  initRevenueSplits,
@@ -266,11 +257,9 @@ export default function AnalyticsClient({
   const [topParks,       setTopParks]       = useState(initTopParks);
   const [hourly,         setHourly]         = useState(null);
 
+  const { filters, setFilters, loading, setLoading, parks, parkCount } = useFilterState('Monthly');
   const [tab,       setTab]       = useState('Footfall');
-  const [filters,   setFilters]   = useState(DEFAULT_FILTERS);
   const [viewModes, setViewModes] = useState({});
-  const [loading,   setLoading]   = useState(false);
-  const [parkCount, setParkCount] = useState(0);
 
   const fetchData = async (f) => {
     setLoading(true);
@@ -296,36 +285,24 @@ export default function AnalyticsClient({
     }
   };
 
-  useEffect(() => {
-    fetchData(DEFAULT_FILTERS);
-    api.parks().then(ps => setParkCount(ps.length)).catch(() => {});
-  }, []);
+  useEffect(() => { fetchData(makeDefaultFilters()); }, []);
 
-  const onApply = () => fetchData(filters);
-  const onExport = () => {};
+  // overrideFilters is passed by FilterBar's Reset button — must be honoured
+  // even before the setFilters re-render has propagated.
+  const onApply = (overrideFilters) => fetchData(overrideFilters ?? filters);
 
   const isChart = id => (viewModes[id] || 'chart') === 'chart';
 
-  // Returns the Chart|Table toggle + CSV button JSX for a given section
   const mkCtrl = (id, onCsv) => {
     const view = viewModes[id] || 'chart';
     const setV = v => setViewModes(m => ({ ...m, [id]: v }));
     return (
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-          {['chart', 'table'].map((v, i) => (
-            <button key={v} onClick={() => setV(v)} style={{
-              padding: '3px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', lineHeight: 1.6,
-              background: view === v ? 'var(--teal)' : 'transparent',
-              color:      view === v ? '#fff' : 'var(--ink-4)',
-              border: 'none',
-              borderRight: i === 0 ? '1px solid var(--border)' : 'none',
-            }}>
-              {v === 'chart' ? 'Chart' : 'Table'}
-            </button>
-          ))}
+        <div className="toggle-group">
+          <button className={view === 'chart' ? 'on' : ''} onClick={() => setV('chart')}>Chart</button>
+          <button className={view === 'table' ? 'on' : ''} onClick={() => setV('table')}>Table</button>
         </div>
-        <button onClick={onCsv} className="btn btn-sm" style={{ fontSize: 11 }}>
+        <button onClick={onCsv} className="btn btn-sm">
           <Icon name="download" size={12}/> CSV
         </button>
       </div>
@@ -336,7 +313,9 @@ export default function AnalyticsClient({
     <>
       <div>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.3px' }}>Analytics</div>
-        <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 3 }}>Deep-dive analysis across all 7 parks</div>
+        <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 3 }}>
+          Deep-dive analysis{parkCount > 0 ? ` · ${parkCount} park${parkCount !== 1 ? 's' : ''} in network` : ''}
+        </div>
       </div>
 
       <div className="tabs" style={{ alignSelf: 'flex-start' }}>
@@ -345,25 +324,21 @@ export default function AnalyticsClient({
         ))}
       </div>
 
-      <FilterBar filters={filters} setFilters={setFilters} onApply={onApply} onExport={onExport} showCity={false}/>
+      <FilterBar filters={filters} setFilters={setFilters} onApply={onApply} showCity={false} parks={parks}/>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--ink-3)' }}>
         <Icon name="info" size={13} color="var(--ink-4)"/>
         Showing data for{' '}
-        <strong style={{ color: 'var(--ink)' }}>
-          {filters.park !== 'All Parks' ? filters.park
-            : filters.state !== 'All States' ? filters.state
-            : `All ${parkCount || '—'} parks`}
-        </strong>{' '}
-        · {filters.range.toLowerCase()}
+        <strong style={{ color: 'var(--ink)' }}>{scopeLabel(filters, parkCount)}</strong>
+        {' '}· <strong style={{ color: 'var(--ink)' }}>{filters.range.toLowerCase()}</strong>
         <span className="spacer"/>
-        {loading   && <span className="tag amber">Refreshing…</span>}
+        {loading      && <span className="tag amber">Refreshing…</span>}
         {filters.compare && <span className="tag teal">Comparing to previous period</span>}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, opacity: loading ? 0.55 : 1, transition: 'opacity .25s' }}>
 
-        {/* ── FOOTFALL ─────────────────────────────────────── */}
+        {/* ── FOOTFALL ──────────────────────────────────────────────────────── */}
         {tab === 'Footfall' && <>
           <HourlyChart data={hourly} appliedFilters={filters}/>
           {isChart('wwd-footfall')
@@ -383,7 +358,7 @@ export default function AnalyticsClient({
           }
         </>}
 
-        {/* ── REVENUE ──────────────────────────────────────── */}
+        {/* ── REVENUE ───────────────────────────────────────────────────────── */}
         {tab === 'Revenue' && <>
           <div>
             <CtrlRow
@@ -419,7 +394,7 @@ export default function AnalyticsClient({
           }
         </>}
 
-        {/* ── DEMOGRAPHICS ─────────────────────────────────── */}
+        {/* ── DEMOGRAPHICS ──────────────────────────────────────────────────── */}
         {tab === 'Demographics' && <>
           {isChart('demographics')
             ? <DemographicsSection data={demographics}
@@ -428,7 +403,7 @@ export default function AnalyticsClient({
           }
         </>}
 
-        {/* ── TRENDS ───────────────────────────────────────── */}
+        {/* ── TRENDS ────────────────────────────────────────────────────────── */}
         {tab === 'Trends' && <>
           <div>
             <CtrlRow

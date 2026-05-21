@@ -4,16 +4,16 @@
  */
 
 require('dotenv').config();
-const express      = require('express');
-const cors         = require('cors');
-const cookieParser = require('cookie-parser');
-const morgan       = require('morgan');
-const { Pool }     = require('pg');
+const { validateEnv } = require('./lib/env');
 
-const app  = express();
+// Fail-fast: validates JWT_SECRET, DB_PASSWORD, and NODE_ENV sanity before anything starts.
+validateEnv();
+
+const { Pool }  = require('pg');
+const createApp = require('./app');
+
 const PORT = process.env.PORT || 4000;
 
-// ─── Database pool ───────────────────────────────────────────────────────────
 const pool = new Pool({
   host:     process.env.DB_HOST     || 'localhost',
   port:     parseInt(process.env.DB_PORT || '5432'),
@@ -22,36 +22,14 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
-app.locals.pool = pool;
+const app = createApp(pool);
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(cors({
-  origin:      process.env.FRONTEND_URL || 'http://localhost:3000',
-  methods:     ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true,
-}));
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(cookieParser());
+// Trust the first reverse-proxy hop so express-rate-limit reads the real client IP
+// from X-Forwarded-For instead of the proxy's IP. Set TRUST_PROXY=1 in production.
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', parseInt(process.env.TRUST_PROXY) || 1);
+}
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth',      require('./routes/auth'));
-app.use('/api/parks',     require('./routes/parks'));
-app.use('/api/users',     require('./routes/users'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-app.use('/api/tickets',   require('./routes/tickets'));
-
-// Health check
-app.get('/api/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ status: 'ok', database: 'connected' });
-  } catch (err) {
-    res.status(500).json({ status: 'error', database: err.message });
-  }
-});
-
-// ─── Start ────────────────────────────────────────────────────────────────────
 pool.connect()
   .then(() => {
     console.log('✅ PostgreSQL connected');

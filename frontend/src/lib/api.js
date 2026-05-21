@@ -90,4 +90,49 @@ export const api = {
   createPark:   (body)   => post('/api/parks', body),
   updatePark:   (id, b)  => put(`/api/parks/${id}`, b),
   deletePark:   (id)     => del(`/api/parks/${id}`),
+
+  // RBAC
+  rbacRoles:             ()          => get('/api/rbac/roles'),
+  rbacPermissions:       ()          => get('/api/rbac/permissions'),
+  updateRolePermissions: (id, ids)   => put(`/api/rbac/roles/${id}/permissions`, { permissionIds: ids }),
+  auditLog:              (p = {})    => get(`/api/rbac/audit-log${new URLSearchParams(p).toString() ? '?' + new URLSearchParams(p).toString() : ''}`),
+
+  // Refunds
+  listRefunds:      (p = {})         => get(`/api/refunds?${new URLSearchParams(p)}`),
+  createRefund:     (body)           => post('/api/refunds', body),
+  approveRefund:    (id)             => put(`/api/refunds/${id}/approve`, {}),
+  rejectRefund:     (id, reason)     => put(`/api/refunds/${id}/reject`, { reason }),
+  processRefund:    (id)             => post(`/api/refunds/${id}/process`, {}),
+
+  // Finance
+  listSettlements:       (p = {})   => get(`/api/finance/settlements?${new URLSearchParams(p)}`),
+  submitSettlement:      (id, body) => post(`/api/finance/settlements/${id}/submit`, body),
+  approveSettlement:     (id)       => post(`/api/finance/settlements/${id}/approve`, {}),
+  disputeSettlement:     (id, body) => post(`/api/finance/settlements/${id}/dispute`, body),
+  taxRates:              (p = {})   => get(`/api/finance/tax/rates?${new URLSearchParams(p)}`),
+  reconciliationSummary: (p)        => get(`/api/finance/reconciliation/summary?${new URLSearchParams(p)}`),
+  financeAudit:          (p = {})   => get(`/api/finance/audit?${new URLSearchParams(p)}`),
+
+  // Finance Analytics
+  financeOverview:        (p = {}) => get(`/api/finance/analytics/overview?${new URLSearchParams(p)}`),
+  financeRefundTrend:     (p = {}) => get(`/api/finance/analytics/refund-trend?${new URLSearchParams(p)}`),
+  financeParkPerformance: (p = {}) => get(`/api/finance/analytics/park-performance?${new URLSearchParams(p)}`),
+  financeTaxSummary:      (p = {}) => get(`/api/finance/analytics/tax-summary?${new URLSearchParams(p)}`),
+
+  // Notifications
+  notifications:          (p = {}) => get(`/api/notifications?${new URLSearchParams(p)}`),
+  notificationsUnread:    ()       => get('/api/notifications/unread-count'),
+  notificationsPending:   ()       => get('/api/notifications/pending-actions'),
+  workflowEvents:         (p = {}) => get(`/api/notifications/workflow-events?${new URLSearchParams(p)}`),
+  markNotificationRead:   (id)     => post(`/api/notifications/${id}/read`, {}),
+  markAllRead:            ()       => post('/api/notifications/read-all', {}),
+
+  // Reports & Exports
+  reportHistory:         (p = {}) => get(`/api/reports?${new URLSearchParams(p)}`),
+  exportAnalytics:       (p = {}) => get(`/api/reports/export/analytics?${new URLSearchParams(p)}`),
+  exportFinance:         (p = {}) => get(`/api/reports/export/finance?${new URLSearchParams(p)}`),
+  exportRefunds:         (p = {}) => get(`/api/reports/export/refunds?${new URLSearchParams(p)}`),
+  exportSettlements:     (p = {}) => get(`/api/reports/export/settlements?${new URLSearchParams(p)}`),
+  exportParkPerformance: (p = {}) => get(`/api/reports/export/park-performance?${new URLSearchParams(p)}`),
+  exportReconciliation:  (p = {}) => get(`/api/reports/export/reconciliation?${new URLSearchParams(p)}`),
 };
