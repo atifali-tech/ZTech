@@ -12,6 +12,8 @@
     "migrate": "node scripts/migrate.js",
     "migrate:status": "node scripts/migrate.js --status",
     "migrate:dry-run": "node scripts/migrate.js --dry-run",
+    "db:reset": "node scripts/reset_db.js",
+    "seed": "node seeds/seedData.js",
     "etl:bootstrap": "node scripts/etl-bootstrap.js",
     "etl:dry-run": "node scripts/etl-bootstrap.js --dry-run"
   },

@@ -10,15 +10,15 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
-// ─── Parks (IDs locked to zingparks_local) ────────────────────────────────────
+// ─── Parks (must match IDs seeded in 007_seed_data.sql) ──────────────────────
 const PARKS = [
-  { name: 'Jungle Trail',  id: 'ca7c5d0f-a524-4caa-90c9-4ffbc7417f1a', w: 30, visMin: 200, visMax: 400 },
-  { name: 'UP Darshan',    id: 'aa22ff42-1bb2-4dda-8ba4-20cc5f8b5aeb', w: 20, visMin: 150, visMax: 300 },
-  { name: 'Harmony',       id: '061f08a0-0a82-41d4-8048-e72b20f9787e', w: 12, visMin: 100, visMax: 200 },
-  { name: 'Gautam Buddha', id: '7d777110-e019-48a5-8f66-a260384790b6', w: 12, visMin: 100, visMax: 200 },
-  { name: 'Shivalaya',     id: 'f05aa07f-b769-4652-98ce-9d9876fee669', w: 10, visMin:  80, visMax: 160 },
-  { name: 'Saat Ajoobe',   id: '35f2b4f6-db63-4f6a-a011-e9952d785cca', w:  9, visMin:  70, visMax: 140 },
-  { name: 'World Park',    id: '16f8d92f-6abc-48bf-8c21-224f0461065a', w:  7, visMin:  90, visMax: 180 },
+  { name: 'Jungle Trail',  id: 'ZP001', w: 30, visMin: 200, visMax: 400 },
+  { name: 'UP Darshan',    id: 'ZP002', w: 20, visMin: 150, visMax: 300 },
+  { name: 'Harmony',       id: 'ZP003', w: 12, visMin: 100, visMax: 200 },
+  { name: 'Gautam Buddha', id: 'ZP004', w: 12, visMin: 100, visMax: 200 },
+  { name: 'Shivalaya',     id: 'ZP005', w: 10, visMin:  80, visMax: 160 },
+  { name: 'Saat Ajoobe',   id: 'ZP006', w:  9, visMin:  70, visMax: 140 },
+  { name: 'World Park',    id: 'ZP007', w:  7, visMin:  90, visMax: 180 },
 ];
 
 // Cumulative weights for O(1) weighted park selection
@@ -140,11 +140,6 @@ async function main() {
   try {
     await client.query('BEGIN');
 
-    // tickets.ticket_id has a UNIQUE constraint; multi-category rows share the same
-    // ticket_id, so we drop the constraint and keep a plain index for search.
-    await client.query('ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_ticket_id_key');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_ticket_id ON tickets(ticket_id)');
-
     // ── A) Users ──────────────────────────────────────────────────────────────
     process.stdout.write('A) Inserting users...         ');
     const parkIdByName   = Object.fromEntries(PARKS.map(p => [p.name, p.id]));
@@ -153,7 +148,10 @@ async function main() {
     for (const u of USERS_DEF) {
       const pid      = parkIdByName[u.park];
       const { rows } = await client.query(
-        `INSERT INTO users (name, role, park_id, email) VALUES ($1,'Cashier',$2,$3) RETURNING id`,
+        `INSERT INTO users (name, role, role_id, park_id, email, password_hash)
+         VALUES ($1, 'Cashier', 5, $2, $3, '$2b$10$zrNSWsUWuCZEoNt3WDdq5uuNgVxBtPHEbzIn7xqJVsjG9lAX9qTKu')
+         ON CONFLICT (email) DO UPDATE SET park_id = EXCLUDED.park_id
+         RETURNING id`,
         [u.name, pid, u.email],
       );
       (cashiersByPark[pid] = cashiersByPark[pid] || []).push(rows[0].id);
