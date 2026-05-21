@@ -368,7 +368,7 @@ export default function TicketsClient({ initialData, parks }) {
                   </td>
                 </tr>
               ) : tickets.map(t => (
-                <tr key={t.ticketId} style={{ cursor: 'pointer' }} onClick={() => setDetail(t)}>
+                <tr key={`${t.ticketId}-${t.ageCategory}`} style={{ cursor: 'pointer' }} onClick={() => setDetail(t)}>
                   <td style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{fmt(t.createdAt)}</td>
                   <td className="mono" style={{ color: 'var(--ink)', fontWeight: 600, fontSize: 11.5 }}>{t.ticketId}</td>
                   <td style={{ fontWeight: 500, color: 'var(--ink-2)' }}>{t.park}</td>
