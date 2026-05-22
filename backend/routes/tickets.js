@@ -85,14 +85,46 @@ function validateBooking(t) {
   return errors;
 }
 
+// ─── GST rate lookup (cached per process, refreshed every 10 min) ─────────────
+
+let _gstCache = null;
+let _gstCachedAt = 0;
+
+async function getEntryGstRate(pool) {
+  const now = Date.now();
+  if (_gstCache && now - _gstCachedAt < 10 * 60 * 1000) return _gstCache;
+
+  const { rows } = await pool.query(`
+    SELECT id, cgst_pct, sgst_pct
+      FROM gst_rates
+     WHERE category IN ('Entry', 'default')
+       AND effective_from <= CURRENT_DATE
+       AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+     ORDER BY CASE category WHEN 'Entry' THEN 0 ELSE 1 END, effective_from DESC
+     LIMIT 1
+  `);
+
+  _gstCache = rows[0] ? {
+    id:      rows[0].id,
+    cgstPct: parseFloat(rows[0].cgst_pct),
+    sgstPct: parseFloat(rows[0].sgst_pct),
+  } : { id: null, cgstPct: 0, sgstPct: 0 };
+
+  _gstCachedAt = now;
+  return _gstCache;
+}
+
 // ─── Expansion: one booking → multiple ticket rows ────────────────────────────
 
-function expandBooking(t) {
+function expandBooking(t, gstRate) {
   const rows      = [];
   const priceMap  = t.price_map  || {};
   const vs        = t.visitor_summary || {};
   const status    = t.status || 'Completed';
   const transId   = t.transaction_id || t.ticket_id;
+  const cgstPct   = gstRate?.cgstPct ?? 0;
+  const sgstPct   = gstRate?.sgstPct ?? 0;
+  const gstRateId = gstRate?.id ?? null;
 
   // Build line items for non-zero visitor categories
   const lines = [];
@@ -129,6 +161,10 @@ function expandBooking(t) {
     upiLeft  -= lineUpi;
     cardLeft -= lineCard;
 
+    const cgst  = Math.round(line.lineTotal * cgstPct) / 100;
+    const sgst  = Math.round(line.lineTotal * sgstPct) / 100;
+    const total = Math.round((line.lineTotal + cgst + sgst) * 100) / 100;
+
     rows.push({
       ticket_id:      t.ticket_id,
       transaction_id: transId,
@@ -136,9 +172,9 @@ function expandBooking(t) {
       age_category:   line.ageCategory,
       quantity:       line.qty,
       amount:         line.lineTotal,
-      cgst_amount:    0,
-      sgst_amount:    0,
-      total_amount:   line.lineTotal,
+      cgst_amount:    cgst,
+      sgst_amount:    sgst,
+      total_amount:   total,
       cash_amount:    lineCash,
       upi_amount:     lineUpi,
       card_amount:    lineCard,
@@ -149,6 +185,7 @@ function expandBooking(t) {
       device_id:      t.device_id    || null,
       gender:         t.gender       || null,
       created_at:     t.created_at   || null,
+      gst_rate_id:    gstRateId,
     });
   });
 
@@ -164,14 +201,14 @@ async function insertRow(pool, r) {
       amount, cgst_amount, sgst_amount, total_amount,
       cash_amount, upi_amount, card_amount,
       payment_mode, status, source,
-      cashier_id, device_id, gender, created_at
+      cashier_id, device_id, gender, created_at, gst_rate_id
     ) VALUES (
       $1,  $2,  $3,  $4,  $5,
       $6,  $7,  $8,  $9,
       $10, $11, $12,
       $13, $14, $15,
       $16, $17, $18,
-      COALESCE($19::timestamptz, NOW())
+      COALESCE($19::timestamptz, NOW()), $20
     )
     ON CONFLICT (ticket_id, age_category) DO NOTHING
     RETURNING ticket_id, age_category, quantity, total_amount, created_at
@@ -181,7 +218,7 @@ async function insertRow(pool, r) {
     r.cash_amount, r.upi_amount, r.card_amount,
     r.payment_mode, r.status, r.source,
     r.cashier_id, r.device_id, r.gender,
-    r.created_at,
+    r.created_at, r.gst_rate_id,
   ]);
   return rows[0] || null; // null = duplicate, silently skipped
 }
@@ -206,11 +243,12 @@ router.post('/', [...requirePermission('tickets.create'), parkScope, settledPeri
   // Stamp the authenticated user as cashier — prevents ID forgery
   t.cashier_id = req.user.id;
 
-  const rows = expandBooking(t);
-  if (rows.length === 0)
-    return res.status(400).json({ error: 'visitor_summary has no visitors' });
-
   try {
+    const gstRate = await getEntryGstRate(pool);
+    const rows = expandBooking(t, gstRate);
+    if (rows.length === 0)
+      return res.status(400).json({ error: 'visitor_summary has no visitors' });
+
     const inserted = [];
     const skipped  = [];
 
@@ -249,6 +287,7 @@ router.post('/batch', [...requirePermission('tickets.create'), parkScope], async
 
   const scopedSet = req.scopedParkIds !== null ? new Set(req.scopedParkIds) : null;
   const results   = { inserted: 0, skipped: 0, errors: [] };
+  const gstRate   = await getEntryGstRate(pool);
 
   for (let i = 0; i < bookings.length; i++) {
     const t      = bookings[i];
@@ -267,7 +306,7 @@ router.post('/batch', [...requirePermission('tickets.create'), parkScope], async
     // Stamp authenticated user as cashier
     t.cashier_id = req.user.id;
 
-    const rows = expandBooking(t);
+    const rows = expandBooking(t, gstRate);
     for (const row of rows) {
       try {
         const result = await insertRow(pool, row);

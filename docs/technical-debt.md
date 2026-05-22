@@ -1151,7 +1151,7 @@ This makes unit testing impossible without starting an HTTP server, and logic ca
 | ARCH-02 | No database migration system | High | Backend/DevOps |
 | ARCH-06 | Test setup does not run migration files | Low | Backend |
 | ARCH-07 | `settlement_periods.submitted_by` type mismatch | Low | Backend/DB |
-| FIN-01 | CGST/SGST hardcoded to 0 | Medium | Backend |
+| ~~FIN-01~~ | ~~CGST/SGST hardcoded to 0~~ | ✅ Fixed | Backend |
 
 ---
 
@@ -1166,6 +1166,11 @@ This makes unit testing impossible without starting an HTTP server, and logic ca
 | ANA-01 | No ETL job — analytics tables empty | Phase 10 |
 | ANA-02 | `visitor_demographics` table name mismatch | Phase 10 |
 | FIN-02 | No ticket cancellation / refund endpoint | Phase 11+ |
+| FIN-01 | CGST/SGST hardcoded to 0 | Phase 17 |
+| SEC-06 | Login endpoint brute-force — rate limiting | Phase 17 |
+| SEC-07 | Raw DB error messages in responses | Phase 17 |
+| ARCH-07 | `settlement_periods.submitted_by` type mismatch | Phase 17 |
+| UX-05 | Delete buttons used wrong icon (`file` vs trash) | Phase 17 |
 
 ---
 
@@ -1272,12 +1277,12 @@ This makes unit testing impossible without starting an HTTP server, and logic ca
 
 | Priority | Gap | Debt Item |
 |----------|-----|-----------|
-| 🔴 Must fix | GST calculation hardcoded to 0 — tax filings will be wrong | FIN-01 |
-| 🟠 Should fix | Login endpoint has no rate limiting — brute-force risk | SEC-06 |
-| 🟠 Should fix | Raw DB error messages may leak schema info | SEC-07 |
-| 🟠 Should fix | `settlement_periods.submitted_by` type mismatch — settle notifications broken | ARCH-07 |
+| ✅ Fixed | GST calculation — CGST/SGST now computed from `gst_rates` table | FIN-01 |
+| ✅ Fixed | Login endpoint rate limiting — 20 attempts / 15 min per IP | SEC-06 |
+| ✅ Fixed | DB errors not leaked in responses — generic 'Server error' returned | SEC-07 |
+| ✅ Fixed | `settlement_periods.submitted_by` is `VARCHAR(36)` matching users.id | ARCH-07 |
+| ✅ Fixed | Delete buttons use text label "Delete" — no icon misuse | UX-05 |
 | 🟠 Should fix | Test setup schema diverges from migration files | ARCH-06 |
-| 🟠 Should fix | Delete buttons show file icon — wrong affordance | UX-05 |
 | 🟡 Nice to have | Email/push notifications for finance approvers | NOTIF-03 |
 | 🟡 Nice to have | Notification polling → SSE for real-time delivery | NOTIF-01 |
 
