@@ -73,6 +73,27 @@ async function assignRolePermissions(pool, roleId, permissionNames) {
 async function resetDatabase(pool) {
   await pool.query(`
     TRUNCATE
+      operational_incidents,
+      operational_alerts,
+      occupancy_snapshots,
+      operational_events,
+      occupancy_events,
+      device_heartbeats,
+      device_assignments,
+      shift_sessions,
+      park_devices,
+      park_counters,
+      park_gates,
+      park_zones,
+      park_operational_settings,
+      finance_approvals,
+      refund_requests,
+      reconciliation_exceptions,
+      settlement_periods,
+      generated_reports,
+      gst_rates,
+      tax_invoice_sequences,
+      park_settings,
       workflow_events,
       notifications,
       audit_log,
@@ -99,6 +120,98 @@ async function resetDatabase(pool) {
   `);
 }
 
+// ── Operations test helpers ───────────────────────────────────────────────────
+
+async function createTestZone(pool, { park_id, name = 'Test Zone', zone_type = 'General' } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO park_zones (park_id, name, zone_type) VALUES ($1,$2,$3) RETURNING *`,
+    [park_id, name, zone_type]
+  );
+  return rows[0];
+}
+
+async function createTestCounter(pool, { park_id, name = 'Counter A', counter_type = 'Ticketing', zone_id = null } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO park_counters (park_id, name, counter_type, zone_id) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [park_id, name, counter_type, zone_id]
+  );
+  return rows[0];
+}
+
+async function createTestDevice(pool, { park_id, name = 'POS-01', device_type = 'POS', counter_id = null } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO park_devices (park_id, name, device_type, counter_id) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [park_id, name, device_type, counter_id]
+  );
+  return rows[0];
+}
+
+async function createTestGate(pool, { park_id, name = 'Main Gate', gate_type = 'Entry', zone_id = null, occupancy_enabled = false } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO park_gates (park_id, name, gate_type, zone_id, occupancy_enabled) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [park_id, name, gate_type, zone_id, occupancy_enabled]
+  );
+  return rows[0];
+}
+
+async function createTestShift(pool, { park_id, user_id, counter_id = null, status = 'Open', opening_cash = null, expected_rev = null } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO shift_sessions (park_id, user_id, counter_id, status, opening_cash, expected_rev)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [park_id, user_id, counter_id, status, opening_cash, expected_rev]
+  );
+  return rows[0];
+}
+
+async function enableParkCapability(pool, park_id, capabilities = {}) {
+  const defaults = {
+    supports_entry_tracking: false, supports_devices: false,
+    supports_zones: false, supports_gates: false, supports_shifts: false,
+    ...capabilities,
+  };
+  const { rows } = await pool.query(
+    `INSERT INTO park_operational_settings (park_id, supports_entry_tracking, supports_devices, supports_zones, supports_gates, supports_shifts)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (park_id) DO UPDATE SET
+       supports_entry_tracking = EXCLUDED.supports_entry_tracking,
+       supports_devices = EXCLUDED.supports_devices,
+       supports_zones = EXCLUDED.supports_zones,
+       supports_gates = EXCLUDED.supports_gates,
+       supports_shifts = EXCLUDED.supports_shifts,
+       updated_at = NOW()
+     RETURNING *`,
+    [park_id, defaults.supports_entry_tracking, defaults.supports_devices,
+     defaults.supports_zones, defaults.supports_gates, defaults.supports_shifts]
+  );
+  return rows[0];
+}
+
+async function createTestAlert(pool, { park_id, alert_type = 'stale_heartbeat', severity = 'medium', title = 'Test Alert', status = 'open', target_type = null, target_id = null, auto_resolve = true } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO operational_alerts (park_id, alert_type, severity, title, status, target_type, target_id, auto_resolve)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [park_id, alert_type, severity, title, status, target_type, target_id, auto_resolve]
+  );
+  return rows[0];
+}
+
+async function createTestIncident(pool, { park_id, incident_type = 'custom', severity = 'medium', title = 'Test Incident', status = 'open', reported_by = null, assigned_to = null } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO operational_incidents (park_id, incident_type, severity, title, status, reported_by, assigned_to)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [park_id, incident_type, severity, title, status, reported_by, assigned_to]
+  );
+  return rows[0];
+}
+
+async function recordOccupancyEvent(pool, { park_id, gate_id = null, event_type = 'entry', ticket_ref = null } = {}) {
+  const { rows } = await pool.query(
+    `INSERT INTO occupancy_events (park_id, gate_id, event_type, ticket_ref) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [park_id, gate_id, event_type, ticket_ref]
+  );
+  return rows[0];
+}
+
 module.exports = {
   createTestPool,
   createTestUser,
@@ -106,4 +219,13 @@ module.exports = {
   assignUserPark,
   assignRolePermissions,
   resetDatabase,
+  createTestZone,
+  createTestCounter,
+  createTestDevice,
+  createTestGate,
+  createTestShift,
+  enableParkCapability,
+  createTestAlert,
+  createTestIncident,
+  recordOccupancyEvent,
 };

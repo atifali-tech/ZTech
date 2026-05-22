@@ -299,7 +299,7 @@ export default function FinanceSettlementsClient() {
                             </td>
                             <td style={{ fontSize: 11, color: 'var(--ink-4)' }}>{s.submitted_by_email ? `${s.submitted_by_email.split('@')[0]} · ${fmtDate(s.submitted_at)}` : '—'}</td>
                             <td style={{ textAlign: 'right' }}>
-                              {s.status === 'open' && can('finance.view') && !s.locked && (
+                              {s.status === 'open' && can('finance.submit') && !s.locked && (
                                 <button className="btn btn-sm" onClick={() => { setSubmitTarget(s); setSubmitForm({ actual_rev: '', notes: '' }); }}>
                                   Submit
                                 </button>

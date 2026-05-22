@@ -68,7 +68,10 @@ body.sb-collapsed .app { grid-template-columns: 48px 1fr; }
   border-right: 1px solid #0a0e18;
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; z-index: 20;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none;
 }
+.sidebar::-webkit-scrollbar { display: none; }
 .sidebar-brand { padding: 16px 16px 10px; border-bottom: 1px solid var(--sidebar-line); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .brand-sub-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.16em; color: var(--teal); text-transform: uppercase; }
 .sidebar-section { padding: 14px 14px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sidebar-ink-dim); }
@@ -1083,3 +1086,44 @@ body.sb-collapsed .logout-btn[data-label]:hover::after {
   .data-table { font-size: 12px; }
   .data-table th, .data-table td { padding: 9px 8px; }
 }
+
+/* ── Additional status tag colors ────────────────────────────────────────────── */
+.tag.plum    { background: #F3EEF9; color: var(--plum);   border-color: #D9C8F0; }
+.tag.gray    { background: var(--surface-2); color: var(--ink-4); border-color: var(--border); }
+.tag.blue    { background: #E8F0FE; color: #1A56DB;       border-color: #BFCFFA; }
+
+/* ── Empty state ─────────────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 48px 24px; color: var(--ink-4); text-align: center;
+}
+.empty-state-icon { opacity: 0.35; margin-bottom: 4px; }
+.empty-state-title { font-size: 13px; font-weight: 600; color: var(--ink-3); }
+.empty-state-sub   { font-size: 12px; color: var(--ink-4); max-width: 280px; line-height: 1.5; }
+
+/* ── Staleness indicator ──────────────────────────────────────────────────────── */
+.stale-ok   { color: var(--good); }
+.stale-warn { color: var(--amber); }
+.stale-crit { color: var(--red); font-weight: 600; }
+
+/* ── Ops action bar (mobile-safe) ────────────────────────────────────────────── */
+.ops-action-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: clamp(8px, 1vw, 14px) clamp(12px, 1.5vw, 20px);
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.ops-action-bar .filter-select,
+.ops-action-bar .filter-input { flex: 1 1 140px; min-width: 100px; max-width: 220px; }
+
+@media (max-width: 599px) {
+  .ops-action-bar { flex-direction: column; align-items: stretch; }
+  .ops-action-bar .filter-select,
+  .ops-action-bar .filter-input { max-width: 100%; }
+}
+
+/* ── Severity badge ───────────────────────────────────────────────────────────── */
+.sev-critical { background: #FEE2E2; color: #B91C1C; border-color: #FCA5A5; }
+.sev-high     { background: #FEF3C7; color: #92400E; border-color: #FCD34D; }
+.sev-medium   { background: #FFF7ED; color: #C2410C; border-color: #FDBA74; }
+.sev-low      { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
+.sev-info     { background: var(--surface-2); color: var(--ink-4); border-color: var(--border); }

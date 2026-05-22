@@ -68,7 +68,7 @@ router.get('/settlements', ...requirePermission('finance.view'), parkScope, asyn
 
 // ── POST /settlements/:id/submit ──────────────────────────────────────────────
 
-router.post('/settlements/:id/submit', ...requirePermission('finance.view'), async (req, res) => {
+router.post('/settlements/:id/submit', ...requirePermission('finance.submit'), async (req, res) => {
   const pool = req.app.locals.pool;
   const { rows: [sp] } = await pool.query(
     'SELECT * FROM settlement_periods WHERE id = $1',
@@ -222,7 +222,7 @@ router.get('/tax/rates', ...requirePermission('finance.view'), async (req, res) 
 
 router.get('/reconciliation/summary', ...requirePermission('finance.reconcile'), parkScope, async (req, res) => {
   const pool   = req.app.locals.pool;
-  const parkId = parseInt(req.query.park_id, 10);
+  const parkId = req.query.park_id;
   const date   = req.query.date;
 
   if (!parkId || !date) {

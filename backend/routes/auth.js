@@ -179,4 +179,42 @@ router.post('/change-password', require('../middleware/auth'), async (req, res) 
   }
 });
 
+// ── POST /api/auth/admin-reset-password ──────────────────────────────────────
+// Super Admin / Corporate Admin only. Sets a temporary password; user must change on next login.
+router.post('/admin-reset-password', require('../middleware/auth'), async (req, res) => {
+  const { user_id, new_password } = req.body;
+  if (!user_id || !new_password) return res.status(400).json({ error: 'user_id and new_password are required' });
+  if (new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  // Only Super Admin and Corporate Admin may use this endpoint
+  const allowedRoles = ['Super Admin', 'Corporate Admin'];
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Insufficient privileges' });
+  }
+
+  const pool = req.app.locals.pool;
+  try {
+    const { rows } = await pool.query('SELECT id, email FROM users WHERE id = $1', [user_id]);
+    if (!rows[0]) return res.status(404).json({ error: 'User not found' });
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, must_change_password = TRUE WHERE id = $2',
+      [hash, user_id],
+    );
+
+    // Invalidate all existing sessions for the target user
+    await sessionCache.incrementTokenVersion(pool, user_id);
+
+    await logAudit(pool, req.user, 'auth.admin_reset_password', 'user', user_id, {
+      target_email: rows[0].email,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth/admin-reset-password]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

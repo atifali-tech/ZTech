@@ -31,6 +31,17 @@ const REPORTS_NAV = [
   { id: 'reports', label: 'Reports & Exports', icon: 'download', href: '/admin/reports', perm: 'reports.view' },
 ];
 
+const OPERATIONS_NAV = [
+  { id: 'op-dashboard', label: 'Ops Dashboard', icon: 'activity', href: '/admin/operations',           perm: 'counters.view'  },
+  { id: 'op-alerts',    label: 'Alerts',         icon: 'warning',  href: '/admin/operations/alerts',   perm: 'alerts.view'    },
+  { id: 'op-incidents', label: 'Incidents',      icon: 'xCircle',  href: '/admin/operations/incidents',perm: 'incidents.view' },
+  { id: 'op-zones',     label: 'Zones',          icon: 'map',      href: '/admin/operations/zones',    perm: 'zones.view'     },
+  { id: 'op-counters',  label: 'Counters',       icon: 'grid',     href: '/admin/operations/counters', perm: 'counters.view'  },
+  { id: 'op-devices',   label: 'Devices',        icon: 'shield',   href: '/admin/operations/devices',  perm: 'devices.view'   },
+  { id: 'op-gates',     label: 'Gates',          icon: 'ticket',   href: '/admin/operations/gates',    perm: 'gates.view'     },
+  { id: 'op-shifts',    label: 'Shifts',         icon: 'lock',     href: '/admin/operations/shifts',   perm: 'shifts.view'    },
+];
+
 
 function ZTechLogoDark() {
   return (
@@ -78,10 +89,11 @@ export default function Sidebar({ active = 'dashboard' }) {
     router.push('/login');
   };
 
-  const visiblePrimary  = PRIMARY_NAV.filter(it => can(it.perm));
-  const visibleAdmin    = ADMIN_NAV.filter(it => can(it.perm));
-  const visibleFinance  = FINANCE_NAV.filter(it => can(it.perm));
-  const visibleReports  = REPORTS_NAV.filter(it => can(it.perm));
+  const visiblePrimary    = PRIMARY_NAV.filter(it => can(it.perm));
+  const visibleAdmin      = ADMIN_NAV.filter(it => can(it.perm));
+  const visibleFinance    = FINANCE_NAV.filter(it => can(it.perm));
+  const visibleReports    = REPORTS_NAV.filter(it => can(it.perm));
+  const visibleOperations = OPERATIONS_NAV.filter(it => can(it.perm));
 
   return (
     <aside className="sidebar">
@@ -157,6 +169,23 @@ export default function Sidebar({ active = 'dashboard' }) {
           <div className="sidebar-section">Reports</div>
           <div className="sidebar-nav">
             {visibleReports.map(it => (
+              <Link key={it.id} href={it.href}
+                className={'nav-item' + (active === it.id ? ' active' : '')}
+                data-label={it.label}>
+                <Icon name={it.icon} size={15}/>
+                <span>{it.label}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Operations section */}
+      {visibleOperations.length > 0 && (
+        <>
+          <div className="sidebar-section">Operations</div>
+          <div className="sidebar-nav">
+            {visibleOperations.map(it => (
               <Link key={it.id} href={it.href}
                 className={'nav-item' + (active === it.id ? ' active' : '')}
                 data-label={it.label}>

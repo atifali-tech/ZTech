@@ -178,7 +178,7 @@ describe('GET /api/tickets', () => {
       .set('Authorization', `Bearer ${saToken}`);
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({
-      pagination: { page: 1, limit: 50 },
+      pagination: { page: 1, limit: 25 },
       summary: { count: expect.any(Number) },
       tickets: expect.any(Array),
     });

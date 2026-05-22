@@ -53,6 +53,15 @@ module.exports = function createApp(pool) {
   app.use('/api/finance',   require('./routes/finance'));
   app.use('/api/reports',        require('./routes/reports'));
   app.use('/api/notifications',  require('./routes/notifications'));
+  app.use('/api/operations/zones',      require('./routes/zones'));
+  app.use('/api/operations/gates',      require('./routes/gates'));
+  app.use('/api/operations/devices',    require('./routes/devices'));
+  app.use('/api/operations/counters',   require('./routes/counters'));
+  app.use('/api/operations/shifts',     require('./routes/shifts'));
+  app.use('/api/operations/occupancy',  require('./routes/occupancy'));
+  app.use('/api/operations/alerts',     require('./routes/alerts'));
+  app.use('/api/operations/incidents',  require('./routes/incidents'));
+  app.use('/api/operations/dashboard',  require('./routes/opsDashboard'));
 
   app.get('/api/health', async (_req, res) => {
     try {

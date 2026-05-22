@@ -141,6 +141,13 @@ router.put('/:id/approve', ...requirePermission('finance.approve'), async (req, 
   if (refund.status !== 'pending') return res.status(409).json({ error: `Cannot approve a refund in '${refund.status}' status` });
   if (refund.requested_by === req.user.id) return res.status(403).json({ error: 'Cannot approve your own refund request' });
 
+  // P0-1: Ceiling validation — refund cannot exceed original ticket amount
+  if (parseFloat(refund.amount) > parseFloat(refund.ticket_amount)) {
+    return res.status(422).json({
+      error: `Refund amount ₹${refund.amount} exceeds original ticket amount ₹${refund.ticket_amount}`,
+    });
+  }
+
   const { rows: [updated] } = await pool.query(
     `UPDATE refund_requests
         SET status = 'approved', approved_by = $1, approved_at = NOW()
