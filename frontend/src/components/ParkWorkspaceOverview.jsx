@@ -49,11 +49,10 @@ function ChecklistItem({ label, done, action, onAction }) {
   );
 }
 
-export default function ParkWorkspaceOverview({ parkId, park, counts, settings, onGoToSettings, onGoToTab }) {
+export default function ParkWorkspaceOverview({ parkId, park, counts, settings, parkManager, pricingConfigured: pricingConfiguredProp, onGoToSettings, onGoToTab }) {
   const { can } = useAuth();
 
-  // Pricing is always "pending" until the pricing engine is implemented
-  const pricingConfigured = false;
+  const pricingConfigured = pricingConfiguredProp ?? false;
 
   const checklistItems = [
     {
@@ -155,6 +154,65 @@ export default function ParkWorkspaceOverview({ parkId, park, counts, settings, 
             </div>
           </>
         )}
+      </div>
+
+      {/* ── Park info strip: Manager · Pricing Status ── */}
+      <div style={{
+        display: 'flex', gap: 0, marginBottom: 20,
+        border: '1px solid var(--border)', borderRadius: 8,
+        overflow: 'hidden', background: 'var(--surface)',
+      }}>
+        {[
+          {
+            label: 'Park Manager',
+            value: parkManager?.name ?? '—',
+            sub:   parkManager?.email ?? 'Not assigned',
+            icon:  'users',
+            onClick: () => onGoToTab?.('users'),
+          },
+          {
+            label: 'Pricing Status',
+            value: pricingConfigured ? 'Configured' : 'Not Configured',
+            sub:   pricingConfigured ? 'Rules active' : 'Add pricing rules to go live',
+            icon:  'ticket',
+            valueColor: pricingConfigured ? 'var(--teal)' : '#D89614',
+            onClick: () => onGoToTab?.('pricing'),
+          },
+          {
+            label: 'Capacity',
+            value: park?.capacity ? park.capacity.toLocaleString() : '—',
+            sub:   'Max visitors',
+            icon:  'grid',
+          },
+          {
+            label: 'Shifts',
+            value: (counts?.shifts_open ?? 0) > 0 ? `${counts.shifts_open} Open` : 'None Open',
+            sub:   (counts?.shifts_open ?? 0) > 0 ? 'Active now' : 'No active shifts',
+            icon:  'activity',
+            valueColor: (counts?.shifts_open ?? 0) > 0 ? 'var(--teal)' : 'var(--ink-3)',
+            onClick: () => onGoToTab?.('operations', 'shifts'),
+          },
+        ].map((item, i, arr) => (
+          <div
+            key={item.label}
+            onClick={item.onClick}
+            style={{
+              flex: 1, padding: '12px 16px',
+              borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+              cursor: item.onClick ? 'pointer' : 'default',
+              transition: 'background .15s',
+            }}
+            onMouseEnter={e => { if (item.onClick) e.currentTarget.style.background = 'var(--surface-2)'; }}
+            onMouseLeave={e => { if (item.onClick) e.currentTarget.style.background = ''; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+              <Icon name={item.icon} size={11} color="var(--ink-4)"/>
+              <span style={{ fontSize: 11, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 600 }}>{item.label}</span>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: item.valueColor || 'var(--ink)', lineHeight: 1.2 }}>{item.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>{item.sub}</div>
+          </div>
+        ))}
       </div>
 
       {/* ── KPI grid — clickable, navigate to operations sections ── */}

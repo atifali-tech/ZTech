@@ -44,6 +44,9 @@ module.exports = function createApp(pool) {
   app.use(cookieParser());
 
   app.use('/api/auth',      require('./routes/auth'));
+  // Pricing routes registered BEFORE the generic parks router so that
+  // GET /api/parks/:parkId/pricing is matched here, not swallowed by parks /:id.
+  app.use('/api/parks',     require('./routes/pricing'));
   app.use('/api/parks',     require('./routes/parks'));
   app.use('/api/users',     require('./routes/users'));
   app.use('/api/dashboard', require('./routes/dashboard'));

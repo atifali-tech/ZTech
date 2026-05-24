@@ -281,14 +281,57 @@ export default function ParkWorkspaceFinance({ parkId }) {
           {settleLoading ? (
             <div className="page-loading"><div className="page-loading-spinner"/><span className="page-loading-text">Loading…</span></div>
           ) : settlements.length === 0 ? (
-            <div style={{ padding: 48, textAlign: 'center' }}>
-              <Icon name="file" size={32} color="var(--ink-5)"/>
-              <div style={{ marginTop: 10, fontSize: 13, color: 'var(--ink-4)' }}>No settlement periods found.</div>
+            <div style={{ padding: '32px 40px' }}>
+              {/* Workflow visualization */}
+              <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                <Icon name="file" size={24} color="var(--ink-5)"/>
+                <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: 'var(--ink-2)' }}>No Settlement Periods Yet</div>
+                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--ink-4)' }}>Create a period to begin daily revenue reconciliation.</div>
+              </div>
+              {/* Visual workflow steps */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: 0, flexWrap: 'wrap', marginBottom: 24,
+              }}>
+                {[
+                  { step: 1, label: 'Create Period',    icon: 'plus',        desc: 'Open a daily settlement period', active: true  },
+                  { step: 2, label: 'Submit Revenue',   icon: 'money',       desc: 'Enter actual cash collected',    active: false },
+                  { step: 3, label: 'Approve',          icon: 'checkCircle', desc: 'Finance Head reviews & approves',active: false },
+                  { step: 4, label: 'Reconcile',        icon: 'shield',      desc: 'Resolve any exceptions',         active: false },
+                ].map((s, i, arr) => (
+                  <div key={s.step} style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      width: 120, padding: '10px 8px',
+                      background: s.active ? 'var(--teal-50)' : 'var(--surface-2)',
+                      border: `1px solid ${s.active ? 'var(--teal-100)' : 'var(--border)'}`,
+                      borderRadius: 8,
+                    }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: '50%', marginBottom: 6,
+                        background: s.active ? 'var(--teal)' : 'var(--border)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon name={s.icon} size={14} color={s.active ? '#fff' : 'var(--ink-5)'}/>
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: s.active ? 'var(--teal)' : 'var(--ink-3)', textAlign: 'center' }}>{s.label}</div>
+                      <div style={{ fontSize: 10, color: 'var(--ink-5)', textAlign: 'center', marginTop: 2, lineHeight: 1.3 }}>{s.desc}</div>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div style={{ width: 24, height: 1, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }}>
+                        <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--ink-5)', marginTop: -10 }}>›</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
               {can('finance.submit') && (
-                <button className="btn btn-primary" style={{ marginTop: 12 }}
-                  onClick={() => { setCreateForm({ period_date: new Date().toISOString().slice(0, 10), notes: '' }); setCreateError(null); setShowCreate(true); }}>
-                  + Create First Period
-                </button>
+                <div style={{ textAlign: 'center' }}>
+                  <button className="btn btn-primary"
+                    onClick={() => { setCreateForm({ period_date: new Date().toISOString().slice(0, 10), notes: '' }); setCreateError(null); setShowCreate(true); }}>
+                    <Icon name="plus" size={13} color="#fff"/> Create First Settlement Period
+                  </button>
+                </div>
               )}
             </div>
           ) : (

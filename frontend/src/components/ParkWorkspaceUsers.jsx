@@ -108,14 +108,54 @@ export default function ParkWorkspaceUsers({ parkId }) {
         </div>
         <div className="sec-body" style={{ padding: 0 }}>
           {parkUsers.length === 0 ? (
-            <div style={{ padding: 48, textAlign: 'center' }}>
-              <Icon name="users" size={32} color="var(--ink-5)"/>
-              <div style={{ marginTop: 10, fontSize: 13, color: 'var(--ink-4)' }}>No users assigned to this park.</div>
-              {can('users.create') && (
-                <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setModal('create')}>
-                  + Add User
-                </button>
-              )}
+            <div>
+              {/* Onboarding header */}
+              <div style={{
+                padding: '20px 24px 16px',
+                background: 'var(--surface-2)',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <Icon name="users" size={20} color="var(--ink-4)"/>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-2)' }}>Assign a Park Manager to get started</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 2 }}>
+                    Users assigned here gain access to this park&apos;s workspace, operations, and data.
+                  </div>
+                </div>
+                {can('users.create') && (
+                  <button className="btn btn-primary btn-sm" onClick={() => setModal('create')}>
+                    <Icon name="plus" size={12} color="#fff"/> Assign User
+                  </button>
+                )}
+              </div>
+              {/* Empty table shell */}
+              <table className="data-table" style={{ opacity: 0.45 }}>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    {can('users.edit') && <th style={{ textAlign: 'right' }}>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {['Park Manager', 'Cashier', 'Cashier'].map((role, i) => (
+                    <tr key={i}>
+                      <td><div style={{ width: 120, height: 12, background: 'var(--border)', borderRadius: 4 }}/></td>
+                      <td><span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: 'var(--border)', color: 'var(--ink-5)' }}>{role}</span></td>
+                      <td><div style={{ width: 160, height: 12, background: 'var(--border)', borderRadius: 4 }}/></td>
+                      <td><div style={{ width: 90, height: 12, background: 'var(--border)', borderRadius: 4 }}/></td>
+                      <td><span className="tag gray" style={{ fontSize: 10 }}>—</span></td>
+                      <td><div style={{ width: 80, height: 12, background: 'var(--border)', borderRadius: 4 }}/></td>
+                      {can('users.edit') && <td/>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <table className="data-table">

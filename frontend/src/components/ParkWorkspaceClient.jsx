@@ -99,11 +99,13 @@ export default function ParkWorkspaceClient({ parkId }) {
     showToast('Settings saved');
   };
 
-  const park     = summary?.park;
-  const counts   = summary?.counts;
-  const settings = summary?.settings;
+  const park        = summary?.park;
+  const counts      = summary?.counts;
+  const settings    = summary?.settings;
+  const parkManager = summary?.park_manager;
 
-  // Setup % for health badge (7 checklist items, pricing always incomplete for now)
+  // Setup % for health badge (7 checklist items)
+  const pricingConfigured = (counts?.pricing_rules ?? 0) > 0;
   const checklistDone = [
     !!(settings && (settings.supports_entry_tracking || settings.supports_devices || settings.supports_zones || settings.supports_shifts || settings.supports_gates)),
     (counts?.zones    ?? 0) > 0,
@@ -111,7 +113,7 @@ export default function ParkWorkspaceClient({ parkId }) {
     (counts?.counters ?? 0) > 0,
     (counts?.devices  ?? 0) > 0,
     (counts?.users    ?? 0) > 0,
-    false, // pricing always pending
+    pricingConfigured,
   ].filter(Boolean).length;
   const setupPct = summary ? Math.round((checklistDone / 7) * 100) : 0;
   const health   = getHealthStatus(setupPct, false);
@@ -284,6 +286,8 @@ export default function ParkWorkspaceClient({ parkId }) {
           {tab === 'overview'   && (
             <ParkWorkspaceOverview
               parkId={parkId} park={park} counts={counts} settings={settings}
+              parkManager={parkManager}
+              pricingConfigured={pricingConfigured}
               onGoToSettings={() => goToTab('settings')}
               onGoToTab={goToTab}
             />

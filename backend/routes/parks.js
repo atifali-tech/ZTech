@@ -50,22 +50,23 @@ router.get('/:id/summary', [...requirePermission('parks.view'), parkScope], asyn
   }
   const pool = req.app.locals.pool;
   try {
-    const [parkRow, counts, settings, users] = await Promise.all([
+    const [parkRow, counts, settings, users, parkManager] = await Promise.all([
       pool.query(
         'SELECT id, name, city, state, color_hex, capacity FROM parks WHERE id = $1',
         [parkId],
       ),
       pool.query(`
         SELECT
-          (SELECT COUNT(*)  FROM park_zones     WHERE park_id = $1)                       AS zones,
-          (SELECT COUNT(*)  FROM park_zones     WHERE park_id = $1 AND is_active = TRUE)  AS zones_active,
-          (SELECT COUNT(*)  FROM park_gates     WHERE park_id = $1)                       AS gates,
-          (SELECT COUNT(*)  FROM park_gates     WHERE park_id = $1 AND is_active = TRUE)  AS gates_active,
-          (SELECT COUNT(*)  FROM park_counters  WHERE park_id = $1)                       AS counters,
-          (SELECT COUNT(*)  FROM park_counters  WHERE park_id = $1 AND is_active = TRUE)  AS counters_active,
-          (SELECT COUNT(*)  FROM park_devices   WHERE park_id = $1)                       AS devices,
-          (SELECT COUNT(*)  FROM park_devices   WHERE park_id = $1 AND status = 'Online') AS devices_online,
-          (SELECT COUNT(*)  FROM shift_sessions WHERE park_id = $1 AND status = 'Open')   AS shifts_open
+          (SELECT COUNT(*)  FROM park_zones         WHERE park_id = $1)                            AS zones,
+          (SELECT COUNT(*)  FROM park_zones         WHERE park_id = $1 AND is_active = TRUE)       AS zones_active,
+          (SELECT COUNT(*)  FROM park_gates         WHERE park_id = $1)                            AS gates,
+          (SELECT COUNT(*)  FROM park_gates         WHERE park_id = $1 AND is_active = TRUE)       AS gates_active,
+          (SELECT COUNT(*)  FROM park_counters      WHERE park_id = $1)                            AS counters,
+          (SELECT COUNT(*)  FROM park_counters      WHERE park_id = $1 AND is_active = TRUE)       AS counters_active,
+          (SELECT COUNT(*)  FROM park_devices       WHERE park_id = $1)                            AS devices,
+          (SELECT COUNT(*)  FROM park_devices       WHERE park_id = $1 AND status = 'Online')      AS devices_online,
+          (SELECT COUNT(*)  FROM shift_sessions     WHERE park_id = $1 AND status = 'Open')        AS shifts_open,
+          (SELECT COUNT(*)  FROM park_pricing_rules WHERE park_id = $1 AND is_active = TRUE)       AS pricing_rules
       `, [parkId]),
       pool.query(
         'SELECT * FROM park_operational_settings WHERE park_id = $1',
@@ -73,6 +74,13 @@ router.get('/:id/summary', [...requirePermission('parks.view'), parkScope], asyn
       ),
       pool.query(
         'SELECT COUNT(*)::int AS cnt FROM user_parks WHERE park_id = $1',
+        [parkId],
+      ),
+      pool.query(
+        `SELECT u.name, u.email FROM users u
+         JOIN user_parks up ON up.user_id = u.id
+         WHERE up.park_id = $1 AND u.role = 'Park Manager'
+         ORDER BY u.created_at LIMIT 1`,
         [parkId],
       ),
     ]);
@@ -84,6 +92,7 @@ router.get('/:id/summary', [...requirePermission('parks.view'), parkScope], asyn
 
     res.json({
       park: parkRow.rows[0],
+      park_manager: parkManager.rows[0] || null,
       counts: {
         zones:            parseInt(c.zones),
         zones_active:     parseInt(c.zones_active),
@@ -94,6 +103,7 @@ router.get('/:id/summary', [...requirePermission('parks.view'), parkScope], asyn
         devices:          parseInt(c.devices),
         devices_online:   parseInt(c.devices_online),
         shifts_open:      parseInt(c.shifts_open),
+        pricing_rules:    parseInt(c.pricing_rules),
         users:            users.rows[0].cnt,
       },
       settings: {

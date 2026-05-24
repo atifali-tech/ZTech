@@ -128,11 +128,10 @@ function TopParksTable({ topParks, metric = 'Revenue' }) {
 
 function RevenueSplitsTable({ data }) {
   if (!data) return null;
+  // Source and Payment are owned by the Dashboard (RevenueBarCard) — excluded here.
   const sections = [
     { label: 'By Demographic', rows: data.byDemographic },
     { label: 'By Category',    rows: data.byCategory    },
-    { label: 'By Source',      rows: data.bySource      },
-    { label: 'By Payment',     rows: data.byPayment     },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -285,6 +284,7 @@ export default function AnalyticsClient({
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(makeDefaultFilters()); }, []);
 
   // overrideFilters is passed by FilterBar's Reset button — must be honoured
@@ -351,11 +351,6 @@ export default function AnalyticsClient({
                 headerExtra={mkCtrl('heatmap', () => csvHeatmap(heatmap))}/>
             : <><CtrlRow title="Weekly Peak Hour Heatmap" ctrl={mkCtrl('heatmap', () => csvHeatmap(heatmap))}/><HeatmapTable data={heatmap}/></>
           }
-          {isChart('top-parks-footfall')
-            ? <TopParksRow topParks={topParks} initialTab="Footfall"
-                headerExtra={mkCtrl('top-parks-footfall', () => csvTopParks(topParks, 'Footfall', 'top-parks-footfall.csv'))}/>
-            : <><CtrlRow title="Top Performing Parks · Footfall" ctrl={mkCtrl('top-parks-footfall', () => csvTopParks(topParks, 'Footfall', 'top-parks-footfall.csv'))}/><TopParksTable topParks={topParks} metric="Footfall"/></>
-          }
         </>}
 
         {/* ── REVENUE ───────────────────────────────────────────────────────── */}
@@ -387,11 +382,6 @@ export default function AnalyticsClient({
               : <ComparativeTable data={comparative}/>
             }
           </div>
-          {isChart('top-parks-revenue')
-            ? <TopParksRow topParks={topParks} initialTab="Revenue"
-                headerExtra={mkCtrl('top-parks-revenue', () => csvTopParks(topParks, 'Revenue', 'top-parks-revenue.csv'))}/>
-            : <><CtrlRow title="Top Performing Parks · Revenue" ctrl={mkCtrl('top-parks-revenue', () => csvTopParks(topParks, 'Revenue', 'top-parks-revenue.csv'))}/><TopParksTable topParks={topParks} metric="Revenue"/></>
-          }
         </>}
 
         {/* ── DEMOGRAPHICS ──────────────────────────────────────────────────── */}
