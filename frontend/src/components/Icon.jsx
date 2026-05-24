@@ -40,6 +40,7 @@ const PATHS = {
   trash:    <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></>,
   check:    <><path d="M4 12l5 5L20 7"/></>,
   x:        <><path d="M18 6L6 18M6 6l12 12"/></>,
+  plus:     <><path d="M12 5v14M5 12h14"/></>,
 };
 
 export default function Icon({ name, size = 16, color = 'currentColor', strokeWidth = 1.6 }) {

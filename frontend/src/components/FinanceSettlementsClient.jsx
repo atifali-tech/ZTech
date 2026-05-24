@@ -52,6 +52,70 @@ function StatusBadge({ status, locked }) {
 const LIMIT = 25;
 const STATUSES = ['', 'open', 'submitted', 'approved', 'disputed'];
 
+// Stateless create period form — parent manages state (no hooks here)
+function CreatePeriodForm({ form, onChange, parks, onSubmit, onCancel, loading, error }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 60,
+      display: 'grid', placeItems: 'center',
+    }} onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal-box">
+        <div className="modal-title">Create Settlement Period</div>
+        <div className="modal-msg" style={{ marginBottom: 16 }}>
+          Opens a new settlement period for daily reconciliation.
+        </div>
+
+        {error && (
+          <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+
+        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>
+          Park
+        </label>
+        <select
+          value={form.park_id}
+          onChange={e => onChange('park_id', e.target.value)}
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 5, fontSize: 13, marginBottom: 12, background: 'var(--surface)' }}
+        >
+          <option value="">— Select park —</option>
+          {parks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+
+        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>
+          Period Date
+        </label>
+        <input
+          type="date"
+          value={form.period_date}
+          max={new Date().toISOString().slice(0, 10)}
+          onChange={e => onChange('period_date', e.target.value)}
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 5, fontSize: 13, marginBottom: 12 }}
+        />
+
+        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>
+          Notes (optional)
+        </label>
+        <textarea
+          value={form.notes}
+          onChange={e => onChange('notes', e.target.value)}
+          placeholder="Opening notes…"
+          rows={2}
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 5, fontSize: 13, resize: 'vertical', fontFamily: 'inherit' }}
+        />
+
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onCancel} disabled={loading}>Cancel</button>
+          <button className="btn btn-primary" onClick={onSubmit} disabled={loading || !form.park_id || !form.period_date}>
+            {loading ? 'Creating…' : 'Create Period'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Stateless submit form — parent manages state (no hooks here)
 function SubmitForm({ form, onChange, onSubmit, onCancel, loading }) {
   return (
@@ -112,6 +176,15 @@ export default function FinanceSettlementsClient() {
   const [actionError, setActionError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Parks list for the create period form
+  const [parks,       setParks]       = useState([]);
+
+  // Create period modal state
+  const [showCreate,    setShowCreate]    = useState(false);
+  const [createForm,    setCreateForm]    = useState({ park_id: '', period_date: new Date().toISOString().slice(0, 10), notes: '' });
+  const [createError,   setCreateError]   = useState(null);
+  const [createLoading, setCreateLoading] = useState(false);
+
   // Submit form state
   const [submitTarget, setSubmitTarget] = useState(null); // settlement object
   const [submitForm,   setSubmitForm]   = useState({ actual_rev: '', notes: '' });
@@ -120,6 +193,29 @@ export default function FinanceSettlementsClient() {
   const [confirm, setConfirm] = useState(null); // { action, settlement }
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  useEffect(() => {
+    apiFetch('/api/parks').then(setParks).catch(() => {});
+  }, []);
+
+  const handleCreatePeriod = async () => {
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      await apiFetch('/api/finance/settlements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ park_id: createForm.park_id, period_date: createForm.period_date, notes: createForm.notes || undefined }),
+      });
+      setShowCreate(false);
+      showToast('Settlement period created');
+      fetchRef.current();
+    } catch (err) {
+      setCreateError(err.message);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
 
   const fetchRef = useRef(null);
   fetchRef.current = async ({ pg = page, st = statusFilter } = {}) => {
@@ -246,6 +342,11 @@ export default function FinanceSettlementsClient() {
               </div>
 
               <div className="sec-actions">
+                {can('finance.submit') && (
+                  <button className="btn btn-sm btn-primary" onClick={() => { setCreateForm({ park_id: parks[0]?.id || '', period_date: new Date().toISOString().slice(0, 10), notes: '' }); setCreateError(null); setShowCreate(true); }}>
+                    <Icon name="plus" size={12} color="#fff"/> New Period
+                  </button>
+                )}
                 <button className="btn btn-sm icon-btn" onClick={() => fetchRef.current()} title="Refresh">
                   <Icon name="refresh" size={13}/>
                 </button>
@@ -351,6 +452,19 @@ export default function FinanceSettlementsClient() {
 
         </div>
       </div>
+
+      {/* Create period modal */}
+      {showCreate && (
+        <CreatePeriodForm
+          form={createForm}
+          onChange={(k, v) => setCreateForm(f => ({ ...f, [k]: v }))}
+          parks={parks}
+          onSubmit={handleCreatePeriod}
+          onCancel={() => setShowCreate(false)}
+          loading={createLoading}
+          error={createError}
+        />
+      )}
 
       {/* Submit form modal */}
       {submitTarget && (

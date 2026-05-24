@@ -23,6 +23,13 @@ const MODULE_ORDER = [
   { key: 'roles',     label: 'Roles' },
   { key: 'finance',   label: 'Finance' },
   { key: 'reports',   label: 'Reports' },
+  { key: 'counters',  label: 'Counters' },
+  { key: 'devices',   label: 'Devices' },
+  { key: 'gates',     label: 'Gates' },
+  { key: 'shifts',    label: 'Shifts' },
+  { key: 'zones',     label: 'Zones' },
+  { key: 'alerts',    label: 'Alerts' },
+  { key: 'incidents', label: 'Incidents' },
 ];
 
 const ROLE_COLORS = {

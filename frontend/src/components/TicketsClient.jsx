@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useTransition } from 'react';
 import { num } from '../lib/format';
 import Icon        from './Icon';
+import { useAuth } from '../lib/auth-context';
 import { computeDefaultDates } from '../lib/filterDefaults';
 import DatePicker    from './DatePicker';
 import WeekPicker    from './WeekPicker';
@@ -258,6 +259,7 @@ function FiltersBar({ filters, setFilters, parks, onSearch }) {
 
 // ─── Main component ───────────────────────────────────────────
 export default function TicketsClient({ initialData, parks }) {
+  const { can } = useAuth();
   const initDates = computeDefaultDates('Monthly');
   const [data,    setData]    = useState(initialData);
   const [filters, setFilters] = useState({ search: '', park: '', age: '', payment: '', status: '', range: 'Monthly', date: initDates.date, dateEnd: initDates.dateEnd });
@@ -265,6 +267,8 @@ export default function TicketsClient({ initialData, parks }) {
   const [page,    setPage]    = useState(1);
   const [limit,   setLimit]   = useState(25);
   const [detail,  setDetail]  = useState(null);
+  const [cancelling,   setCancelling]   = useState(false);
+  const [cancelError,  setCancelError]  = useState(null);
   const [pending, startTransition] = useTransition();
 
   const fetchRef = useRef(null);
@@ -299,6 +303,32 @@ export default function TicketsClient({ initialData, parks }) {
   }, [initialData]);
 
   const handleSearch = () => { startTransition(() => { setPage(1); fetchRef.current?.({ page: 1 }); }); };
+
+  const handleCancel = async () => {
+    if (!detail) return;
+    setCancelling(true);
+    setCancelError(null);
+    const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    try {
+      const res = await fetch(`${BASE_URL}/api/tickets/${encodeURIComponent(detail.ticketId)}/cancel`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Cancel failed');
+      // Optimistic update in current page data
+      setData(d => d ? ({
+        ...d,
+        tickets: d.tickets.map(t => t.ticketId === detail.ticketId ? { ...t, status: 'Cancelled' } : t),
+      }) : d);
+      setDetail(t => t ? { ...t, status: 'Cancelled' } : t);
+    } catch (err) {
+      setCancelError(err.message);
+    } finally {
+      setCancelling(false);
+    }
+  };
   const handleSort   = (col) => {
     const dir = col === sort.col && sort.dir === 'desc' ? 'asc' : 'desc';
     setSort({ col, dir });
@@ -418,8 +448,14 @@ export default function TicketsClient({ initialData, parks }) {
                 <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--ink)' }}>{detail.ticketId}</div>
                 <div style={{ color: 'var(--ink-4)', fontSize: 12, marginTop: 3 }}>{fmt(detail.createdAt)}</div>
               </div>
-              <button style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: 'var(--ink-4)', cursor: 'pointer' }} onClick={() => setDetail(null)}>✕</button>
+              <button style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: 'var(--ink-4)', cursor: 'pointer' }} onClick={() => { setDetail(null); setCancelError(null); }}>✕</button>
             </div>
+
+            {cancelError && (
+              <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>
+                {cancelError}
+              </div>
+            )}
             {[
               ['Park', detail.park],
               ['Category', ticketCategories(detail).map(c => formatCategory(c, ticketCategories(detail).length > 1)).join(', ')],
@@ -435,6 +471,19 @@ export default function TicketsClient({ initialData, parks }) {
                 <span style={{ color: 'var(--ink)', fontWeight: 600 }}>{val}</span>
               </div>
             ))}
+
+            {can('tickets.cancel') && detail.status !== 'Cancelled' && (
+              <div style={{ marginTop: 20 }}>
+                <button
+                  className="btn btn-danger"
+                  style={{ width: '100%' }}
+                  disabled={cancelling}
+                  onClick={handleCancel}
+                >
+                  {cancelling ? 'Cancelling…' : 'Cancel Ticket'}
+                </button>
+              </div>
+            )}
 
             {ticketPayments(detail).length > 1 && (
               <div style={{ marginTop: 16, background: 'var(--surface-2)', borderRadius: 6, padding: 14 }}>

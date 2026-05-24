@@ -70,6 +70,8 @@ export default function FinanceReconciliationClient() {
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState(null);
   const [parksLoading, setParksLoading] = useState(true);
+  const [resolving, setResolving] = useState(null); // exception id being resolved
+  const [resolveError, setResolveError] = useState(null);
 
   useEffect(() => {
     apiFetch('/api/parks')
@@ -91,6 +93,27 @@ export default function FinanceReconciliationClient() {
       setData(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResolve = async (exceptionId) => {
+    setResolving(exceptionId);
+    setResolveError(null);
+    try {
+      await apiFetch(`/api/finance/reconciliation/exceptions/${exceptionId}/resolve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      // Optimistic update — mark this exception as resolved in local state
+      setData(d => d ? ({
+        ...d,
+        exceptions: d.exceptions.map(e => e.id === exceptionId ? { ...e, resolved: true } : e),
+      }) : d);
+    } catch (err) {
+      setResolveError(err.message);
+    } finally {
+      setResolving(null);
     }
   };
 
@@ -169,6 +192,13 @@ export default function FinanceReconciliationClient() {
           {error && (
             <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 5, padding: '10px 14px', fontSize: 12.5, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon name="warning" size={13} color="var(--red)"/> {error}
+            </div>
+          )}
+
+          {resolveError && (
+            <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 5, padding: '10px 14px', fontSize: 12.5, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="warning" size={13} color="var(--red)"/> {resolveError}
+              <button style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)' }} onClick={() => setResolveError(null)}>✕</button>
             </div>
           )}
 
@@ -259,6 +289,7 @@ export default function FinanceReconciliationClient() {
                           <th style={{ textAlign: 'right' }}>Variance</th>
                           <th>Status</th>
                           <th>Notes</th>
+                          {can('finance.reconcile') && <th style={{ textAlign: 'right' }}></th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -279,6 +310,19 @@ export default function FinanceReconciliationClient() {
                               }
                             </td>
                             <td style={{ fontSize: 11, color: 'var(--ink-4)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.notes || '—'}</td>
+                            {can('finance.reconcile') && (
+                              <td style={{ textAlign: 'right' }}>
+                                {!e.resolved && (
+                                  <button
+                                    className="btn btn-sm btn-primary"
+                                    disabled={resolving === e.id}
+                                    onClick={() => handleResolve(e.id)}
+                                  >
+                                    {resolving === e.id ? 'Resolving…' : 'Resolve'}
+                                  </button>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>

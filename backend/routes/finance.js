@@ -16,6 +16,59 @@ function finDate(col, from, to) {
 
 const router = express.Router();
 
+// ── POST /settlements — create a new settlement period ────────────────────────
+// Finance Head or Super Admin creates a period for a specific park + date.
+// Returns 409 if one already exists (idempotency guard).
+
+router.post('/settlements', ...requirePermission('finance.submit'), parkScope, async (req, res) => {
+  const pool = req.app.locals.pool;
+  const { park_id, period_date, notes } = req.body;
+
+  if (!park_id || !period_date) {
+    return res.status(400).json({ error: 'park_id and period_date are required' });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(period_date)) {
+    return res.status(400).json({ error: 'period_date must be YYYY-MM-DD' });
+  }
+
+  // Park scope check — scoped users may only create for their parks
+  if (req.scopedParkIds !== null && !req.scopedParkIds.includes(park_id)) {
+    return res.status(403).json({ error: 'Access denied: park not in your scope' });
+  }
+
+  // Verify park exists
+  const { rows: [park] } = await pool.query('SELECT id, name FROM parks WHERE id = $1', [park_id]);
+  if (!park) return res.status(404).json({ error: 'Park not found' });
+
+  try {
+    const { rows: [sp] } = await pool.query(
+      `INSERT INTO settlement_periods (park_id, period_date, status, notes)
+       VALUES ($1, $2, 'open', $3)
+       RETURNING *`,
+      [park_id, period_date, notes || null],
+    );
+
+    await logAudit(pool, req.user, 'settlement.create', 'settlement_period', sp.id, {
+      park_id, period_date, notes: notes || null,
+    });
+
+    logWorkflowEvent(pool, {
+      eventType: 'settlement.created', actorId: req.user.id, actorEmail: req.user.email,
+      entityType: 'settlement_period', entityId: sp.id,
+      parkId: park_id,
+      meta: { park_id, period_date },
+    }).catch(e => console.error('[notifier] settlement.created:', e.message));
+
+    res.status(201).json(sp);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `Settlement period for ${park_id} on ${period_date} already exists` });
+    }
+    console.error('[finance/settlements/create]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── GET /settlements — list settlement periods ────────────────────────────────
 
 router.get('/settlements', ...requirePermission('finance.view'), parkScope, async (req, res) => {
@@ -265,6 +318,51 @@ router.get('/reconciliation/summary', ...requirePermission('finance.reconcile'),
     settlement:  sp || null,
     exceptions,
   });
+});
+
+// ── PATCH /reconciliation/exceptions/:id/resolve — mark an exception resolved ──
+
+router.patch('/reconciliation/exceptions/:id/resolve', ...requirePermission('finance.reconcile'), async (req, res) => {
+  const pool = req.app.locals.pool;
+  const exceptionId = parseInt(req.params.id, 10);
+  if (!exceptionId) return res.status(400).json({ error: 'Invalid exception id' });
+
+  const notes = (req.body?.notes || '').trim() || null;
+
+  // Fetch exception + its settlement's park for scope check
+  const { rows: [exc] } = await pool.query(
+    `SELECT e.*, sp.park_id
+       FROM reconciliation_exceptions e
+       JOIN settlement_periods sp ON sp.id = e.settlement_id
+      WHERE e.id = $1`,
+    [exceptionId],
+  );
+  if (!exc) return res.status(404).json({ error: 'Exception not found' });
+  if (exc.resolved) return res.status(409).json({ error: 'Exception is already resolved' });
+
+  // Park scope enforcement
+  const { rows: scopeRows } = await req.app.locals.pool.query(
+    'SELECT park_id FROM user_parks WHERE user_id = $1', [req.user.id],
+  );
+  const scopedIds = scopeRows.map(r => r.park_id);
+  const isGlobal  = ['Super Admin', 'Corporate Admin'].includes(req.user.role);
+  if (!isGlobal && !scopedIds.includes(exc.park_id)) {
+    return res.status(403).json({ error: 'Access denied to this park' });
+  }
+
+  const { rows: [updated] } = await pool.query(
+    `UPDATE reconciliation_exceptions
+        SET resolved = TRUE, resolved_by = $1, resolved_at = NOW(), notes = COALESCE($2, notes)
+      WHERE id = $3
+      RETURNING *`,
+    [req.user.id, notes, exceptionId],
+  );
+
+  await logAudit(pool, req.user, 'reconciliation.exception.resolve', 'reconciliation_exception', exceptionId, {
+    settlement_id: exc.settlement_id, park_id: exc.park_id, exception_type: exc.exception_type, notes,
+  });
+
+  res.json(updated);
 });
 
 // ── GET /audit — finance-specific audit trail ─────────────────────────────────

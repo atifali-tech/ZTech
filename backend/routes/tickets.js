@@ -3,15 +3,17 @@
 // Tickets API
 // Base path: /api/tickets
 //
-// POST /api/tickets        — create one booking (multi-age-category)
-// POST /api/tickets/batch  — create multiple bookings (offline sync)
-// GET  /api/tickets        — paginated, filterable list
+// POST /api/tickets              — create one booking (multi-age-category)
+// POST /api/tickets/batch        — create multiple bookings (offline sync)
+// GET  /api/tickets              — paginated, filterable list
+// PUT  /api/tickets/:id/cancel   — cancel all rows for a ticket_id
 // ═══════════════════════════════════════════════════════════════
 const express           = require('express');
 const router            = express.Router();
 const requirePermission = require('../middleware/permission');
 const parkScope         = require('../middleware/parkScope');
 const settledPeriod     = require('../middleware/settledPeriod');
+const logAudit          = require('../lib/audit');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -465,6 +467,57 @@ router.get('/', [requirePermission('tickets.view'), parkScope], async (req, res)
     });
   } catch (err) {
     console.error('[GET /tickets]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── PUT /api/tickets/:id/cancel ─────────────────────────────────────────────
+
+router.put('/:id/cancel', [...requirePermission('tickets.cancel'), parkScope], async (req, res) => {
+  const pool     = req.app.locals.pool;
+  const ticketId = (req.params.id || '').trim();
+  const reason   = (req.body?.reason || '').trim() || null;
+
+  if (!ticketId) return res.status(400).json({ error: 'ticket_id required' });
+
+  try {
+    // Fetch all rows for this ticket_id to validate state and park scope
+    const { rows: existing } = await pool.query(
+      `SELECT ticket_id, park_id, status FROM tickets WHERE ticket_id = $1 LIMIT 10`,
+      [ticketId]
+    );
+
+    if (existing.length === 0)
+      return res.status(404).json({ error: 'Ticket not found' });
+
+    const parkId = existing[0].park_id;
+
+    // Park scope enforcement
+    if (req.scopedParkIds !== null && !req.scopedParkIds.includes(parkId))
+      return res.status(403).json({ error: 'Access denied: ticket not in your scope' });
+
+    // Guard: all rows already cancelled
+    const allCancelled = existing.every(r => r.status === 'Cancelled');
+    if (allCancelled)
+      return res.status(409).json({ error: 'Ticket is already cancelled' });
+
+    // Cancel all rows for this ticket_id
+    const { rows: updated } = await pool.query(
+      `UPDATE tickets SET status = 'Cancelled'
+        WHERE ticket_id = $1 AND status != 'Cancelled'
+        RETURNING ticket_id, age_category, status`,
+      [ticketId]
+    );
+
+    await logAudit(pool, req.user, 'ticket.cancel', 'ticket', ticketId, {
+      park_id: parkId,
+      rows_cancelled: updated.length,
+      reason,
+    });
+
+    res.json({ ok: true, ticket_id: ticketId, rows_cancelled: updated.length, rows: updated });
+  } catch (err) {
+    console.error('[PUT /tickets/:id/cancel]', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

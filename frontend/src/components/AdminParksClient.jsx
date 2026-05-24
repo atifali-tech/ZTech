@@ -1,12 +1,12 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { useRouter }     from 'next/navigation';
 import Sidebar           from './Sidebar';
 import Topbar            from './Topbar';
 import Icon              from './Icon';
 import Toast             from './Toast';
 import ConfirmDialog     from './ConfirmDialog';
 import ParkFormModal     from './ParkFormModal';
-import ParkSettingsModal from './ParkSettingsModal';
 import { useAuth }       from '../lib/auth-context';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -19,13 +19,38 @@ async function apiFetch(path, opts = {}) {
   return data;
 }
 
+function DeviceDots({ online, total }) {
+  if (!total) return <span style={{ color: 'var(--ink-5)', fontSize: 11 }}>—</span>;
+  const dots = Array.from({ length: Math.min(total, 6) }, (_, i) => (
+    <span key={i} style={{
+      display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+      background: i < online ? 'var(--good)' : 'var(--ink-5)',
+      marginRight: 2,
+    }}/>
+  ));
+  return <span title={`${online}/${total} online`}>{dots}{total > 6 && <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>+{total - 6}</span>}</span>;
+}
+
+function CountPill({ n, label, warn }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      fontSize: 11, fontWeight: 600, color: warn && n === 0 ? 'var(--ink-5)' : 'var(--ink-3)',
+    }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+      <span style={{ fontWeight: 400, color: 'var(--ink-4)' }}>{label}</span>
+    </span>
+  );
+}
+
 export default function AdminParksClient() {
+  const router = useRouter();
   const { can } = useAuth();
   const [parks,        setParks]        = useState([]);
+  const [summaries,    setSummaries]    = useState({});
   const [loading,      setLoading]      = useState(true);
   const [denied,       setDenied]       = useState(false);
-  const [modal,        setModal]        = useState(null); // null | 'create' | park-object
-  const [settingsPark, setSettingsPark] = useState(null);
+  const [modal,        setModal]        = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast,        setToast]        = useState({ msg: null, type: 'ok' });
 
@@ -39,6 +64,12 @@ export default function AdminParksClient() {
     try {
       const data = await apiFetch('/api/parks');
       setParks(data);
+      // Load summaries in background — fail silently per park
+      data.forEach(p => {
+        apiFetch(`/api/parks/${p.id}/summary`)
+          .then(s => setSummaries(prev => ({ ...prev, [p.id]: s })))
+          .catch(() => {});
+      });
     } catch (err) {
       if (err.message?.includes('Permission denied') || err.message?.includes('denied')) setDenied(true);
       else showToast(err.message, 'error');
@@ -55,6 +86,10 @@ export default function AdminParksClient() {
     const isEdit = modal !== 'create';
     setModal(null);
     showToast(isEdit ? 'Park updated' : 'Park created');
+    if (!isEdit) {
+      // Navigate to workspace immediately after creation
+      router.push(`/admin/parks/${saved.id}`);
+    }
   };
 
   const doDelete = async () => {
@@ -73,7 +108,7 @@ export default function AdminParksClient() {
     <div className="app">
       <Sidebar active="parks"/>
       <div className="main">
-        <Topbar current="Parks Management" icon="map"/>
+        <Topbar current="Parks" icon="map"/>
         <div className="canvas">
           <div className="sec">
             <div className="sec-head">
@@ -82,11 +117,12 @@ export default function AdminParksClient() {
               <div className="sec-actions">
                 {can('parks.create') && (
                   <button className="btn btn-primary btn-sm" onClick={() => setModal('create')}>
-                    + Add Park
+                    <Icon name="plus" size={12} color="#fff"/> Add Park
                   </button>
                 )}
               </div>
             </div>
+
             <div className="sec-body" style={{ padding: 0 }}>
               {loading ? (
                 <div style={{ padding: 24 }}>
@@ -96,67 +132,85 @@ export default function AdminParksClient() {
                 <div style={{ padding: 24, textAlign: 'center', color: 'var(--red)', fontSize: 13 }}>
                   You do not have permission to view parks.
                 </div>
+              ) : parks.length === 0 ? (
+                <div style={{ padding: 64, textAlign: 'center' }}>
+                  <Icon name="map" size={40} color="var(--ink-5)"/>
+                  <div style={{ marginTop: 12, fontSize: 14, fontWeight: 600, color: 'var(--ink-3)' }}>No parks yet</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: 'var(--ink-4)' }}>Create your first park to get started.</div>
+                  {can('parks.create') && (
+                    <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setModal('create')}>
+                      + Add Park
+                    </button>
+                  )}
+                </div>
               ) : (
-                <div className="table-responsive">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Code</th>
-                        <th>Park Name</th>
-                        <th>City</th>
-                        <th>State</th>
-                        <th>Capacity</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parks.map(p => (
-                        <tr key={p.id}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{
-                                width: 10, height: 10, borderRadius: '50%',
-                                background: p.color_hex || '#8A92A3', flexShrink: 0,
-                                display: 'inline-block',
-                              }}/>
-                              <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)' }}>{p.id}</span>
-                            </div>
-                          </td>
-                          <td style={{ fontWeight: 600, color: 'var(--ink)' }}>{p.name}</td>
-                          <td style={{ fontSize: 13, color: 'var(--ink-3)' }}>{p.city || '—'}</td>
-                          <td style={{ fontSize: 13, color: 'var(--ink-3)' }}>{p.state || '—'}</td>
-                          <td style={{ fontSize: 13, color: 'var(--ink-3)' }}>
-                            {p.capacity ? p.capacity.toLocaleString() : <span style={{ color: 'var(--ink-5)' }}>—</span>}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                              {can('parks.edit') && (
-                                <button className="btn btn-ghost btn-sm" title="Operational Settings"
-                                  onClick={() => setSettingsPark(p)}>
-                                  Settings
-                                </button>
+                <div>
+                  {parks.map(p => {
+                    const s = summaries[p.id];
+                    const c = s?.counts;
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => router.push(`/admin/parks/${p.id}`)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 16,
+                          padding: '14px 20px', borderBottom: '1px solid var(--border)',
+                          cursor: 'pointer', transition: 'background .1s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
+                        onMouseLeave={e => e.currentTarget.style.background = ''}
+                      >
+                        {/* Color dot + code */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 96, flexShrink: 0 }}>
+                          <span style={{
+                            width: 10, height: 10, borderRadius: '50%',
+                            background: p.color_hex || '#8A92A3', flexShrink: 0,
+                          }}/>
+                          <span className="mono" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-3)' }}>{p.id}</span>
+                        </div>
+
+                        {/* Name + location */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--ink)' }}>{p.name}</div>
+                          <div style={{ fontSize: 11.5, color: 'var(--ink-4)', marginTop: 2 }}>
+                            {[p.city, p.state].filter(Boolean).join(', ')}
+                            {p.capacity ? ` · ${p.capacity.toLocaleString()} cap` : ''}
+                          </div>
+                        </div>
+
+                        {/* Resource pills */}
+                        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexShrink: 0 }}>
+                          {c ? (
+                            <>
+                              <CountPill n={c.zones}    label="zones"    warn/>
+                              <CountPill n={c.counters} label="counters" warn/>
+                              <span title={`${c.devices_online}/${c.devices} devices online`}>
+                                <DeviceDots online={c.devices_online} total={c.devices}/>
+                              </span>
+                              <CountPill n={c.users}    label="users"/>
+                              {c.shifts_open > 0 && (
+                                <span className="tag green" style={{ fontSize: 10 }}>{c.shifts_open} shift{c.shifts_open > 1 ? 's' : ''} open</span>
                               )}
-                              {can('parks.edit') && (
-                                <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => setModal(p)}>
-                                  Edit
-                                </button>
-                              )}
-                              {can('parks.delete') && (
-                                <button className="btn btn-ghost btn-sm" title="Delete"
-                                  onClick={() => setDeleteTarget(p)}
-                                  style={{ color: 'var(--red)' }}>
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {parks.length === 0 && !loading && (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--ink-4)', padding: '24px 0' }}>No parks found</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--ink-5)' }}>Loading…</span>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                          {can('parks.edit') && (
+                            <button className="btn btn-ghost btn-sm" onClick={() => setModal(p)}>Edit</button>
+                          )}
+                          {can('parks.delete') && (
+                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}
+                              onClick={() => setDeleteTarget(p)}>Delete</button>
+                          )}
+                          <span style={{ color: 'var(--ink-5)', padding: '0 4px', alignSelf: 'center', fontSize: 16 }}>›</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -169,14 +223,6 @@ export default function AdminParksClient() {
           park={modal === 'create' ? null : modal}
           onSave={handleSave}
           onClose={() => setModal(null)}
-        />
-      )}
-
-      {settingsPark && (
-        <ParkSettingsModal
-          park={settingsPark}
-          onClose={() => setSettingsPark(null)}
-          onSaved={() => { setSettingsPark(null); showToast('Operational settings saved'); }}
         />
       )}
 

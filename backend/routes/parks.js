@@ -39,6 +39,117 @@ router.get('/', [requireAuth, parkScope], async (req, res) => {
   }
 });
 
+// ── GET /api/parks/:id/summary ────────────────────────────────────────────────
+// Returns aggregate counts for the Park Workspace header KPIs.
+// MUST be registered before /:id to prevent Express swallowing the sub-path.
+router.get('/:id/summary', [...requirePermission('parks.view'), parkScope], async (req, res) => {
+  const parkId = req.params.id;
+  const scopedIds = req.scopedParkIds;
+  if (scopedIds !== null && !scopedIds.includes(parkId)) {
+    return res.status(403).json({ error: 'Access denied to this park' });
+  }
+  const pool = req.app.locals.pool;
+  try {
+    const [parkRow, counts, settings, users] = await Promise.all([
+      pool.query(
+        'SELECT id, name, city, state, color_hex, capacity FROM parks WHERE id = $1',
+        [parkId],
+      ),
+      pool.query(`
+        SELECT
+          (SELECT COUNT(*)  FROM park_zones     WHERE park_id = $1)                       AS zones,
+          (SELECT COUNT(*)  FROM park_zones     WHERE park_id = $1 AND is_active = TRUE)  AS zones_active,
+          (SELECT COUNT(*)  FROM park_gates     WHERE park_id = $1)                       AS gates,
+          (SELECT COUNT(*)  FROM park_gates     WHERE park_id = $1 AND is_active = TRUE)  AS gates_active,
+          (SELECT COUNT(*)  FROM park_counters  WHERE park_id = $1)                       AS counters,
+          (SELECT COUNT(*)  FROM park_counters  WHERE park_id = $1 AND is_active = TRUE)  AS counters_active,
+          (SELECT COUNT(*)  FROM park_devices   WHERE park_id = $1)                       AS devices,
+          (SELECT COUNT(*)  FROM park_devices   WHERE park_id = $1 AND status = 'Online') AS devices_online,
+          (SELECT COUNT(*)  FROM shift_sessions WHERE park_id = $1 AND status = 'Open')   AS shifts_open
+      `, [parkId]),
+      pool.query(
+        'SELECT * FROM park_operational_settings WHERE park_id = $1',
+        [parkId],
+      ),
+      pool.query(
+        'SELECT COUNT(*)::int AS cnt FROM user_parks WHERE park_id = $1',
+        [parkId],
+      ),
+    ]);
+
+    if (!parkRow.rows[0]) return res.status(404).json({ error: 'Park not found' });
+
+    const c = counts.rows[0];
+    const s = settings.rows[0] || {};
+
+    res.json({
+      park: parkRow.rows[0],
+      counts: {
+        zones:            parseInt(c.zones),
+        zones_active:     parseInt(c.zones_active),
+        gates:            parseInt(c.gates),
+        gates_active:     parseInt(c.gates_active),
+        counters:         parseInt(c.counters),
+        counters_active:  parseInt(c.counters_active),
+        devices:          parseInt(c.devices),
+        devices_online:   parseInt(c.devices_online),
+        shifts_open:      parseInt(c.shifts_open),
+        users:            users.rows[0].cnt,
+      },
+      settings: {
+        supports_entry_tracking:  s.supports_entry_tracking  ?? false,
+        supports_devices:         s.supports_devices          ?? false,
+        supports_zones:           s.supports_zones            ?? false,
+        supports_gates:           s.supports_gates            ?? false,
+        supports_shifts:          s.supports_shifts           ?? false,
+        auto_close_shifts:        s.auto_close_shifts         ?? false,
+        max_daily_capacity:       s.max_daily_capacity        ?? null,
+        alert_threshold_pct:      s.alert_threshold_pct       ?? 80,
+        occupancy_warning_pct:    s.occupancy_warning_pct     ?? 90,
+        occupancy_critical_pct:   s.occupancy_critical_pct    ?? 95,
+        shift_variance_threshold: s.shift_variance_threshold  ?? 500,
+      },
+    });
+  } catch (err) {
+    console.error('[parks/summary]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── GET /api/parks/:id/operational-settings ───────────────────────────────────
+// MUST be registered before /:id for the same reason.
+router.get('/:id/operational-settings', [...requirePermission('parks.view'), parkScope], async (req, res) => {
+  const scopedIds = req.scopedParkIds;
+  if (scopedIds !== null && !scopedIds.includes(req.params.id)) {
+    return res.status(403).json({ error: 'Access denied to this park' });
+  }
+  const pool = req.app.locals.pool;
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM park_operational_settings WHERE park_id = $1`,
+      [req.params.id],
+    );
+    if (!rows[0]) {
+      return res.json({
+        park_id:                  req.params.id,
+        supports_entry_tracking:  false,
+        supports_devices:         false,
+        supports_zones:           false,
+        max_daily_capacity:       null,
+        alert_threshold_pct:      80,
+        occupancy_warning_pct:    90,
+        occupancy_critical_pct:   95,
+        shift_variance_threshold: 500,
+        auto_close_shifts:        false,
+      });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('[parks/operational-settings/get]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── GET /api/parks/:id ────────────────────────────────────────────────────────
 router.get('/:id', [...requirePermission('parks.view'), parkScope], async (req, res) => {
   const scopedIds = req.scopedParkIds;
@@ -136,40 +247,6 @@ router.delete('/:id', requirePermission('parks.delete'), async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[parks/delete]', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ── GET /api/parks/:id/operational-settings ───────────────────────────────────
-router.get('/:id/operational-settings', [...requirePermission('parks.view'), parkScope], async (req, res) => {
-  const scopedIds = req.scopedParkIds;
-  if (scopedIds !== null && !scopedIds.includes(req.params.id)) {
-    return res.status(403).json({ error: 'Access denied to this park' });
-  }
-  const pool = req.app.locals.pool;
-  try {
-    const { rows } = await pool.query(
-      `SELECT * FROM park_operational_settings WHERE park_id = $1`,
-      [req.params.id],
-    );
-    if (!rows[0]) {
-      // Return defaults — row may not yet exist for older parks
-      return res.json({
-        park_id:                  req.params.id,
-        supports_entry_tracking:  false,
-        supports_devices:         false,
-        supports_zones:           false,
-        max_daily_capacity:       null,
-        alert_threshold_pct:      80,
-        occupancy_warning_pct:    90,
-        occupancy_critical_pct:   95,
-        shift_variance_threshold: 500,
-        auto_close_shifts:        false,
-      });
-    }
-    res.json(rows[0]);
-  } catch (err) {
-    console.error('[parks/operational-settings/get]', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -7,6 +7,9 @@ import { useAuth } from '../lib/auth-context';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+// ── Nav definitions ────────────────────────────────────────────────────────────
+// Items gated by perm; sections only render if at least one item is visible.
+
 const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: 'grid',   href: '/',          perm: 'dashboard.view' },
   { id: 'tickets',   label: 'Tickets',   icon: 'ticket', href: '/tickets',   perm: 'tickets.view'   },
@@ -14,34 +17,52 @@ const PRIMARY_NAV = [
 ];
 
 const ADMIN_NAV = [
-  { id: 'parks', label: 'Parks',       icon: 'map',    href: '/admin/parks', perm: 'parks.view'  },
-  { id: 'users', label: 'Users',       icon: 'users',  href: '/admin/users', perm: 'users.view'  },
-  { id: 'roles', label: 'Roles',       icon: 'shield', href: '/admin/roles', perm: 'roles.view'  },
+  { id: 'parks', label: 'Parks', icon: 'map',    href: '/admin/parks', perm: 'parks.view'  },
+  { id: 'users', label: 'Users', icon: 'users',  href: '/admin/users', perm: 'users.view'  },
+  { id: 'roles', label: 'Roles', icon: 'shield', href: '/admin/roles', perm: 'roles.view'  },
 ];
 
 const FINANCE_NAV = [
-  { id: 'finance-overview', label: 'Overview',        icon: 'chart',   href: '/admin/finance/overview',       perm: 'finance.view' },
-  { id: 'refunds',          label: 'Refunds',         icon: 'money',   href: '/admin/finance/refunds',        perm: 'finance.view' },
-  { id: 'settlements',      label: 'Settlements',     icon: 'lock',    href: '/admin/finance/settlements',    perm: 'finance.view' },
-  { id: 'reconciliation',   label: 'Reconciliation',  icon: 'chart',   href: '/admin/finance/reconciliation', perm: 'finance.reconcile' },
-  { id: 'finance-audit',    label: 'Finance Audit',   icon: 'file',    href: '/admin/finance/audit',          perm: 'finance.view' },
+  { id: 'finance-overview', label: 'Overview',       icon: 'chart',    href: '/admin/finance/overview',       perm: 'finance.view'      },
+  { id: 'refunds',          label: 'Refunds',        icon: 'money',    href: '/admin/finance/refunds',        perm: 'finance.refund'    },
+  { id: 'settlements',      label: 'Settlements',    icon: 'lock',     href: '/admin/finance/settlements',    perm: 'finance.view'      },
+  { id: 'reconciliation',   label: 'Reconciliation', icon: 'chart',    href: '/admin/finance/reconciliation', perm: 'finance.reconcile' },
+  { id: 'finance-audit',    label: 'Finance Audit',  icon: 'file',     href: '/admin/finance/audit',          perm: 'finance.view'      },
 ];
 
 const REPORTS_NAV = [
   { id: 'reports', label: 'Reports & Exports', icon: 'download', href: '/admin/reports', perm: 'reports.view' },
 ];
 
-const OPERATIONS_NAV = [
-  { id: 'op-dashboard', label: 'Ops Dashboard', icon: 'activity', href: '/admin/operations',           perm: 'counters.view'  },
-  { id: 'op-alerts',    label: 'Alerts',         icon: 'warning',  href: '/admin/operations/alerts',   perm: 'alerts.view'    },
-  { id: 'op-incidents', label: 'Incidents',      icon: 'xCircle',  href: '/admin/operations/incidents',perm: 'incidents.view' },
-  { id: 'op-zones',     label: 'Zones',          icon: 'map',      href: '/admin/operations/zones',    perm: 'zones.view'     },
-  { id: 'op-counters',  label: 'Counters',       icon: 'grid',     href: '/admin/operations/counters', perm: 'counters.view'  },
-  { id: 'op-devices',   label: 'Devices',        icon: 'shield',   href: '/admin/operations/devices',  perm: 'devices.view'   },
-  { id: 'op-gates',     label: 'Gates',          icon: 'ticket',   href: '/admin/operations/gates',    perm: 'gates.view'     },
-  { id: 'op-shifts',    label: 'Shifts',         icon: 'lock',     href: '/admin/operations/shifts',   perm: 'shifts.view'    },
+// ── Cross-park ops (visible to Super Admin and Corporate Admin only) ──────────
+// Zones, Gates, Counters, Devices, Shifts are Park Workspace items — not global.
+// Only the cross-park monitoring items remain here.
+const OPS_NAV = [
+  { id: 'op-dashboard', label: 'Ops Dashboard', icon: 'activity', href: '/admin/operations',            perm: 'counters.view'  },
+  { id: 'op-alerts',    label: 'Alerts',         icon: 'warning',  href: '/admin/operations/alerts',    perm: 'alerts.view'    },
+  { id: 'op-incidents', label: 'Incidents',       icon: 'xCircle', href: '/admin/operations/incidents', perm: 'incidents.view' },
 ];
 
+// ── Cashier-only: shift access when using the Admin Portal ────────────────────
+const CASHIER_NAV = [
+  { id: 'op-shifts', label: 'My Shifts', icon: 'lock', href: '/admin/operations/shifts', perm: 'shifts.view' },
+];
+
+// Roles that operate entirely inside the Park Workspace.
+// For these roles: global ops section is hidden; only the workspace entry point matters.
+const PARK_SCOPED_ROLES = ['Park Manager', 'Cashier'];
+
+// Roles that should see cross-park ops (Ops Dashboard, Alerts, Incidents).
+const CROSS_PARK_OPS_ROLES = ['Super Admin', 'Corporate Admin'];
+
+// Roles whose nav is Finance+Reports focused — Tickets and Analytics are excluded
+// from the sidebar even though those permissions exist on the role.
+// (Spec: Finance Head nav = Dashboard, Finance, Reports only.)
+const FINANCE_FOCUSED_ROLES = ['Finance Head'];
+
+// Roles whose nav is read-only park access — Analytics excluded from top nav
+// even though the permission exists. Access path: Parks → Workspace → Analytics.
+const AUTHORITY_ROLES = ['Authority User'];
 
 function ZTechLogoDark() {
   return (
@@ -55,7 +76,7 @@ function ZTechLogoDark() {
 
 export default function Sidebar({ active = 'dashboard' }) {
   const router = useRouter();
-  const { can } = useAuth();
+  const { can, user: me } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -89,11 +110,50 @@ export default function Sidebar({ active = 'dashboard' }) {
     router.push('/login');
   };
 
-  const visiblePrimary    = PRIMARY_NAV.filter(it => can(it.perm));
-  const visibleAdmin      = ADMIN_NAV.filter(it => can(it.perm));
-  const visibleFinance    = FINANCE_NAV.filter(it => can(it.perm));
-  const visibleReports    = REPORTS_NAV.filter(it => can(it.perm));
-  const visibleOperations = OPERATIONS_NAV.filter(it => can(it.perm));
+  const role              = me?.role;
+  const isParkScoped      = PARK_SCOPED_ROLES.includes(role);
+  const isCrossOpsRole    = CROSS_PARK_OPS_ROLES.includes(role);
+  const isCashier         = role === 'Cashier';
+  const isFinanceFocused  = FINANCE_FOCUSED_ROLES.includes(role);
+  const isAuthorityUser   = AUTHORITY_ROLES.includes(role);
+
+  // Primary nav:
+  // - Park-scoped roles (PM, Cashier): Dashboard only
+  // - Finance Head: Dashboard only (Finance+Reports are in their own sections)
+  // - Authority User: Dashboard only (Analytics lives in Park Workspace for them)
+  // - Everyone else: all permitted primary items
+  const visiblePrimary = (isParkScoped || isFinanceFocused || isAuthorityUser)
+    ? PRIMARY_NAV.filter(it => it.id === 'dashboard' && can(it.perm))
+    : PRIMARY_NAV.filter(it => can(it.perm));
+
+  // Admin: Parks, Users, Roles — each gated by permission
+  const visibleAdmin = ADMIN_NAV.filter(it => can(it.perm));
+
+  // Finance: all items — permission-gated per item so Finance Head sees full list
+  const visibleFinance = FINANCE_NAV.filter(it => can(it.perm));
+
+  // Reports: show to everyone with reports.view (not Cashier — no perm)
+  const visibleReports = REPORTS_NAV.filter(it => can(it.perm));
+
+  // Cross-park Ops: only for Super Admin and Corporate Admin
+  // Finance Head / Park Manager / Authority User do not get global ops
+  const visibleOps = isCrossOpsRole
+    ? OPS_NAV.filter(it => can(it.perm))
+    : [];
+
+  // Cashier shift access (only when Cashier is in Admin Portal)
+  const visibleCashierNav = isCashier
+    ? CASHIER_NAV.filter(it => can(it.perm))
+    : [];
+
+  const renderNav = (items) => items.map(it => (
+    <Link key={it.id} href={it.href}
+      className={'nav-item' + (active === it.id ? ' active' : '')}
+      data-label={it.label}>
+      <Icon name={it.icon} size={15}/>
+      <span>{it.label}</span>
+    </Link>
+  ));
 
   return (
     <aside className="sidebar">
@@ -117,31 +177,19 @@ export default function Sidebar({ active = 'dashboard' }) {
         )}
       </div>
 
-      {/* Primary nav */}
-      <div className="sidebar-nav">
-        {visiblePrimary.map(it => (
-          <Link key={it.id} href={it.href}
-            className={'nav-item' + (active === it.id ? ' active' : '')}
-            data-label={it.label}>
-            <Icon name={it.icon} size={15}/>
-            <span>{it.label}</span>
-          </Link>
-        ))}
-      </div>
+      {/* Primary nav — Dashboard (+ Tickets, Analytics for non-park-scoped) */}
+      {visiblePrimary.length > 0 && (
+        <div className="sidebar-nav">
+          {renderNav(visiblePrimary)}
+        </div>
+      )}
 
-      {/* Admin section */}
+      {/* Admin section — Parks, Users, Roles */}
       {visibleAdmin.length > 0 && (
         <>
           <div className="sidebar-section">Admin</div>
           <div className="sidebar-nav">
-            {visibleAdmin.map(it => (
-              <Link key={it.id} href={it.href}
-                className={'nav-item' + (active === it.id ? ' active' : '')}
-                data-label={it.label}>
-                <Icon name={it.icon} size={15}/>
-                <span>{it.label}</span>
-              </Link>
-            ))}
+            {renderNav(visibleAdmin)}
           </div>
         </>
       )}
@@ -151,14 +199,7 @@ export default function Sidebar({ active = 'dashboard' }) {
         <>
           <div className="sidebar-section">Finance</div>
           <div className="sidebar-nav">
-            {visibleFinance.map(it => (
-              <Link key={it.id} href={it.href}
-                className={'nav-item' + (active === it.id ? ' active' : '')}
-                data-label={it.label}>
-                <Icon name={it.icon} size={15}/>
-                <span>{it.label}</span>
-              </Link>
-            ))}
+            {renderNav(visibleFinance)}
           </div>
         </>
       )}
@@ -168,31 +209,27 @@ export default function Sidebar({ active = 'dashboard' }) {
         <>
           <div className="sidebar-section">Reports</div>
           <div className="sidebar-nav">
-            {visibleReports.map(it => (
-              <Link key={it.id} href={it.href}
-                className={'nav-item' + (active === it.id ? ' active' : '')}
-                data-label={it.label}>
-                <Icon name={it.icon} size={15}/>
-                <span>{it.label}</span>
-              </Link>
-            ))}
+            {renderNav(visibleReports)}
           </div>
         </>
       )}
 
-      {/* Operations section */}
-      {visibleOperations.length > 0 && (
+      {/* Cross-park Operations — Super Admin and Corporate Admin only */}
+      {visibleOps.length > 0 && (
         <>
           <div className="sidebar-section">Operations</div>
           <div className="sidebar-nav">
-            {visibleOperations.map(it => (
-              <Link key={it.id} href={it.href}
-                className={'nav-item' + (active === it.id ? ' active' : '')}
-                data-label={it.label}>
-                <Icon name={it.icon} size={15}/>
-                <span>{it.label}</span>
-              </Link>
-            ))}
+            {renderNav(visibleOps)}
+          </div>
+        </>
+      )}
+
+      {/* Cashier shift nav */}
+      {visibleCashierNav.length > 0 && (
+        <>
+          <div className="sidebar-section">Shifts</div>
+          <div className="sidebar-nav">
+            {renderNav(visibleCashierNav)}
           </div>
         </>
       )}
