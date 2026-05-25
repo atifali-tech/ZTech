@@ -68,6 +68,17 @@ CREATE TABLE IF NOT EXISTS tickets (
   PRIMARY KEY (ticket_id, age_category)
 );
 
+-- Ensure surrogate id column exists (table may pre-exist without it)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'tickets' AND column_name = 'id'
+  ) THEN
+    ALTER TABLE tickets ADD COLUMN id SERIAL;
+  END IF;
+END$$;
+
 -- Unique constraint on the surrogate id column (used as FK target by refund_requests etc.)
 -- NOTE: a unique INDEX alone is not enough for PostgreSQL FK targets — must be a CONSTRAINT.
 DO $$
