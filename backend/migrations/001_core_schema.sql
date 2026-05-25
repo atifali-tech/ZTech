@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   device_id      VARCHAR(50),
   gender         VARCHAR(10),
   is_reversal    BOOLEAN       NOT NULL DEFAULT FALSE,
-  reversal_of    INTEGER       REFERENCES tickets(id) NOT VALID,
+  reversal_of    INTEGER       REFERENCES tickets(id),
   gst_rate_id    INTEGER,
   tax_invoice_no VARCHAR(64),
   created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
