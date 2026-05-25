@@ -10,11 +10,10 @@ ALTER TABLE users
 -- The table was created in migration 008 with basic capability flags.
 -- These additional columns support the UI management experience.
 
+-- occupancy_warning_pct and occupancy_critical_pct already added as NUMERIC(5,2) in migration 011.
 ALTER TABLE park_operational_settings
   ADD COLUMN IF NOT EXISTS max_daily_capacity       INTEGER,
   ADD COLUMN IF NOT EXISTS alert_threshold_pct      SMALLINT NOT NULL DEFAULT 80,
-  ADD COLUMN IF NOT EXISTS occupancy_warning_pct    SMALLINT NOT NULL DEFAULT 90,
-  ADD COLUMN IF NOT EXISTS occupancy_critical_pct   SMALLINT NOT NULL DEFAULT 95,
   ADD COLUMN IF NOT EXISTS shift_variance_threshold NUMERIC(12,2) NOT NULL DEFAULT 500,
   ADD COLUMN IF NOT EXISTS auto_close_shifts        BOOLEAN NOT NULL DEFAULT FALSE;
 
