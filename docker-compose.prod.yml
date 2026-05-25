@@ -9,6 +9,7 @@
 #
 # Required environment variables (set in shell or .env.prod):
 #   DB_PASSWORD, JWT_SECRET, CORS_ORIGINS, FRONTEND_URL, NEXT_PUBLIC_API_URL
+#   Example: CORS_ORIGINS=http://localhost:3000,http://13.48.130.180:3000,http://13.48.130.180:4000
 
 services:
   postgres:
