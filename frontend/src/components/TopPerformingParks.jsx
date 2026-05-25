@@ -52,7 +52,7 @@ export default function TopPerformingParks({
               ['Rank', 'Park', 'City', 'Revenue (INR)', ...(compare ? ['Trend (%)'] : [])],
               sorted.map((p, i) => [
                 i + 1, p.name, p.city,
-                p.revenue.toFixed(2),
+                Number(p.revenue).toFixed(2),
                 ...(compare ? [p.revenueTrend ?? ''] : []),
               ])
             )}

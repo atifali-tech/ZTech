@@ -245,12 +245,8 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
             {/* ROW 3 — Top Performing Parks (detailed leaderboard, full width) */}
             <TopPerformingParks
               parks={topParksRev}
-              parkCount={parkCount}
               selectedParks={appliedFilters.parks || []}
-              dateLabel={appliedFilters.range}
               compare={appliedFilters.compare}
-              date={appliedFilters.date}
-              dateEnd={appliedFilters.dateEnd}
             />
           </div>
 
