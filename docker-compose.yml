@@ -39,7 +39,7 @@ services:
       DB_USER:      postgres
       DB_PASSWORD:  ${DB_PASSWORD:-devpassword}
       JWT_SECRET:   ${JWT_SECRET:-dev_jwt_secret_replace_in_production_32chars_min}
-      CORS_ORIGINS: http://localhost:3000,http://13.48.130.180:4000
+      CORS_ORIGINS: http://localhost:3000,http://13.48.130.180:3000,http://13.48.130.180:4000
     volumes:
       - ./backend:/app
       - /app/node_modules    # prevent host node_modules from shadowing container
