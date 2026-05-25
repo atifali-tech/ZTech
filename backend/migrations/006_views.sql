@@ -1,6 +1,21 @@
 -- Migration 006: SQL views — all dashboard aggregate views derived from live tables.
--- Using CREATE OR REPLACE VIEW so this migration is safe to re-run.
--- These replace the physical tables defined in the old schema.sql.
+-- These replace physical tables that may exist from an older schema.
+-- DROP TABLE IF EXISTS first so CREATE OR REPLACE VIEW succeeds even on a DB
+-- that previously had these as physical tables.
+
+DROP TABLE IF EXISTS daily_stats       CASCADE;
+DROP TABLE IF EXISTS demographics      CASCADE;
+DROP TABLE IF EXISTS revenue_by_demographic CASCADE;
+DROP TABLE IF EXISTS revenue_by_category    CASCADE;
+DROP TABLE IF EXISTS revenue_by_source      CASCADE;
+DROP TABLE IF EXISTS revenue_by_payment     CASCADE;
+DROP TABLE IF EXISTS hourly_stats      CASCADE;
+DROP TABLE IF EXISTS heatmap_data      CASCADE;
+DROP TABLE IF EXISTS weekend_weekday   CASCADE;
+DROP TABLE IF EXISTS quarterly_revenue CASCADE;
+DROP TABLE IF EXISTS monthly_revenue   CASCADE;
+DROP TABLE IF EXISTS top_parks_metrics CASCADE;
+DROP TABLE IF EXISTS revenue_trend     CASCADE;
 
 -- ── daily_stats ───────────────────────────────────────────────────────────────
 CREATE OR REPLACE VIEW daily_stats AS
