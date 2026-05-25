@@ -244,17 +244,19 @@ END$$;
 
 INSERT INTO operational_alerts
   (park_id, alert_type, severity, title, body, target_type, status, created_at)
-VALUES
-  ('ZP001', 'device_offline',   'high',   'QR Scanner Offline',
+SELECT park_id, alert_type, severity, title, body, target_type, status, created_at
+FROM (VALUES
+  ('ZP001'::varchar, 'device_offline', 'high',   'QR Scanner Offline',
    'dev-zp001-scanner2 has not sent a heartbeat for 18 minutes.',
-   'device', 'acknowledged', NOW() - INTERVAL '25 minutes'),
-  ('ZP001', 'shift_variance',   'medium', 'Shift Variance Detected',
+   'device'::varchar, 'acknowledged'::varchar, NOW() - INTERVAL '25 minutes'),
+  ('ZP001', 'shift_variance', 'medium', 'Shift Variance Detected',
    'Morning shift reported ₹200 shortfall at Ticketing Counter.',
    'shift', 'open', NOW() - INTERVAL '2 hours'),
-  ('ZP001', 'gate_congested',   'low',    'Main Entry Gate — High Throughput',
+  ('ZP001', 'gate_congested', 'low',    'Main Entry Gate — High Throughput',
    'Gate throughput exceeded 800 scans. Consider opening additional lane.',
    'gate', 'resolved', NOW() - INTERVAL '4 hours')
-ON CONFLICT DO NOTHING;
+) AS v(park_id, alert_type, severity, title, body, target_type, status, created_at)
+WHERE NOT EXISTS (SELECT 1 FROM operational_alerts WHERE park_id = v.park_id AND alert_type = v.alert_type AND title = v.title);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 12. INCIDENTS for ZP001
@@ -262,11 +264,12 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO operational_incidents
   (park_id, incident_type, severity, title, description, status, reported_by, created_at)
-VALUES
-  ('ZP001', 'shift_variance',  'medium',
+SELECT park_id, incident_type, severity, title, description, status, reported_by, created_at
+FROM (VALUES
+  ('ZP001'::varchar, 'shift_variance'::varchar,  'medium'::varchar,
    'Cash Variance — Morning Shift',
    'Counter #1 morning shift closed with ₹200 shortfall. Cashier reports possible miscounting.',
-   'resolved', 'pm-zp001', NOW() - INTERVAL '3 days'),
+   'resolved'::varchar, 'pm-zp001'::varchar, NOW() - INTERVAL '3 days'),
   ('ZP001', 'device_offline',  'high',
    'POS Terminal Reboot Required',
    'POS Terminal at Ticketing Counter went offline. Required manual restart. No revenue impact.',
@@ -275,7 +278,8 @@ VALUES
    'Mobile Counter Opened Late',
    'Mobile ticketing counter opened 45 minutes after scheduled time.',
    'closed', 'pm-zp001', NOW() - INTERVAL '2 days')
-ON CONFLICT DO NOTHING;
+) AS v(park_id, incident_type, severity, title, description, status, reported_by, created_at)
+WHERE NOT EXISTS (SELECT 1 FROM operational_incidents WHERE park_id = v.park_id AND title = v.title);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 13. ADDITIONAL PRICING RULES for ZP001 (if not already seeded)

@@ -172,7 +172,7 @@ CROSS JOIN (VALUES
   ('Weekday', 1.0),
   ('Weekend', 1.3)
 ) AS dt(day_type, multiplier)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (park_id, category, day_type) WHERE is_active = TRUE AND effective_to IS NULL DO NOTHING;
 
 -- Holiday pricing (1.5× weekday Adult/Child/Senior)
 INSERT INTO park_pricing_rules
@@ -184,36 +184,37 @@ CROSS JOIN (VALUES
   ('Child',          100.00),
   ('Senior Citizen',  80.00)
 ) AS cat(category, price)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (park_id, category, day_type) WHERE is_active = TRUE AND effective_to IS NULL DO NOTHING;
 
 -- Toddler Holiday (always 0)
 INSERT INTO park_pricing_rules
   (park_id, category, day_type, base_price, gst_rate_id, is_active, effective_from, created_by)
 SELECT p.id, 'Toddler', 'Holiday', 0.00, NULL, TRUE, '2024-04-01', NULL
 FROM parks p
-ON CONFLICT DO NOTHING;
+ON CONFLICT (park_id, category, day_type) WHERE is_active = TRUE AND effective_to IS NULL DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. SHIFT SESSIONS  (1 closed shift per park + 1 open shift for ZP001–ZP003)
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- shift_sessions has no unique constraint; only insert if no seed shifts exist yet
 INSERT INTO shift_sessions
   (park_id, counter_id, user_id, status, opened_at, closed_at,
    opening_cash, declared_cash, expected_rev, actual_rev, notes)
-VALUES
-  -- Closed shifts (yesterday)
-  ('ZP001','ctr-zp001-1','pm-zp001','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000, 12400.00, 12400.00, 12400.00, 'Normal day'),
+SELECT vals.*
+FROM (VALUES
+  ('ZP001'::varchar,'ctr-zp001-1','pm-zp001','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000::numeric, 12400.00, 12400.00, 12400.00, 'Normal day'),
   ('ZP002','ctr-zp002-1','pm-zp002','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000,  9800.00,  9800.00,  9800.00, 'Normal day'),
   ('ZP003','ctr-zp003-1','pm-zp003','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000,  7600.00,  7600.00,  7600.00, 'Normal day'),
   ('ZP004','ctr-zp004-1','pm-zp004','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000,  8200.00,  8200.00,  8200.00, 'Normal day'),
   ('ZP005','ctr-zp005-1','pm-zp005','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000,  5900.00,  5900.00,  5900.00, 'Normal day'),
   ('ZP006','ctr-zp006-1','pm-zp006','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000,  4800.00,  4800.00,  4800.00, 'Normal day'),
   ('ZP007','ctr-zp007-1','pm-zp007','Closed', NOW()-INTERVAL '26h', NOW()-INTERVAL '18h', 5000,  6100.00,  6100.00,  6100.00, 'Normal day'),
-  -- Open shifts (today — for ZP001, ZP002, ZP003)
   ('ZP001','ctr-zp001-1','pm-zp001','Open',   NOW()-INTERVAL '2h',  NULL, 5000, NULL, NULL, NULL, NULL),
   ('ZP002','ctr-zp002-1','pm-zp002','Open',   NOW()-INTERVAL '90m', NULL, 5000, NULL, NULL, NULL, NULL),
   ('ZP003','ctr-zp003-1','pm-zp003','Open',   NOW()-INTERVAL '3h',  NULL, 5000, NULL, NULL, NULL, NULL)
-ON CONFLICT DO NOTHING;
+) AS vals(park_id, counter_id, user_id, status, opened_at, closed_at, opening_cash, declared_cash, expected_rev, actual_rev, notes)
+WHERE NOT EXISTS (SELECT 1 FROM shift_sessions WHERE park_id = vals.park_id AND status = vals.status);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 9. ALERTS
@@ -221,16 +222,18 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO operational_alerts
   (park_id, alert_type, severity, title, body, status, created_at)
-VALUES
-  ('ZP001', 'occupancy_high',   'medium', 'High Occupancy',         'Current occupancy at 82% of max capacity.',       'open',         NOW()-INTERVAL '45m'),
+SELECT park_id, alert_type, severity, title, body, status, created_at
+FROM (VALUES
+  ('ZP001'::varchar, 'occupancy_high',   'medium', 'High Occupancy',         'Current occupancy at 82% of max capacity.',       'open',         NOW()-INTERVAL '45m'),
   ('ZP001', 'device_offline',   'high',   'Scanner Offline',        'Entry Scanner A has been offline for 15 minutes.','resolved',     NOW()-INTERVAL '3h'),
-  ('ZP002', 'device_offline',   'high',   'POS Offline',            'POS Terminal 1 is not responding.',                'open',         NOW()-INTERVAL '20m'),
+  ('ZP002', 'device_offline',   'high',   'POS Offline',            'POS Terminal 1 is not responding.',               'open',         NOW()-INTERVAL '20m'),
   ('ZP003', 'shift_variance',   'medium', 'Shift Variance',         'Shift variance exceeds ₹450 threshold.',          'open',         NOW()-INTERVAL '1h'),
   ('ZP004', 'occupancy_high',   'low',    'Approaching Threshold',  'Occupancy at 70% — approaching alert threshold.', 'acknowledged', NOW()-INTERVAL '30m'),
   ('ZP005', 'device_offline',   'medium', 'Scanner Maintenance',    'Entry Scanner A is in maintenance mode.',         'open',         NOW()-INTERVAL '2h'),
   ('ZP006', 'shift_variance',   'low',    'Long Running Shift',     'Shift open for over 9 hours without a break.',    'open',         NOW()-INTERVAL '9h'),
   ('ZP007', 'occupancy_high',   'low',    'Low Footfall',           'Below expected footfall for this time of day.',   'open',         NOW()-INTERVAL '4h')
-ON CONFLICT DO NOTHING;
+) AS v(park_id, alert_type, severity, title, body, status, created_at)
+WHERE NOT EXISTS (SELECT 1 FROM operational_alerts WHERE park_id = v.park_id AND alert_type = v.alert_type AND title = v.title);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 10. INCIDENTS

@@ -19,13 +19,25 @@ CREATE TABLE IF NOT EXISTS gst_rates (
 CREATE INDEX IF NOT EXISTS idx_gst_rates_category_date
   ON gst_rates (category, effective_from, effective_to);
 
+-- Add unique constraint so ON CONFLICT has a target
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'uq_gst_rates_category_from'
+      AND table_name = 'gst_rates'
+  ) THEN
+    ALTER TABLE gst_rates ADD CONSTRAINT uq_gst_rates_category_from UNIQUE (category, effective_from);
+  END IF;
+END$$;
+
 INSERT INTO gst_rates (category, cgst_pct, sgst_pct, effective_from) VALUES
   ('Entry',       5.00, 5.00, '2024-01-01'),
   ('F&B',         5.00, 5.00, '2024-01-01'),
   ('Merchandise', 5.00, 5.00, '2024-01-01'),
   ('Event',       5.00, 5.00, '2024-01-01'),
   ('default',     5.00, 5.00, '2024-01-01')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (category, effective_from) DO NOTHING;
 
 -- Wire up gst_rate_id FK on tickets now that gst_rates exists
 DO $$
