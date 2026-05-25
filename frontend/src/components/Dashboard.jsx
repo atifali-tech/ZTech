@@ -13,6 +13,7 @@ import BottomNav from './BottomNav';
 import { num, inr, inrFull, prevPeriodLabel, downloadCSV } from '../lib/format';
 import { COLOR_MAPS } from './RevenuePieCard';
 import RevenueBarCard from './RevenueBarCard';
+import ParkHealthWidget from './ParkHealthWidget';
 
 function normTrend(data) {
   const raw = Array.isArray(data) ? data : (data?.daily ?? data?.trend ?? data?.data ?? []);
@@ -115,12 +116,29 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
     () => (topParks?.Footfall || []).map(p => ({ name: p.name, value: p.value, color: p.color })),
     [topParks],
   );
-  const tixItems = useMemo(() => revenueSplits?.bySource || [], [revenueSplits]);
+  const tixItems = useMemo(() => {
+    const raw = revenueSplits?.bySource || [];
+    const valMap = {}, prevMap = {}, colorMap = {};
+    raw.forEach(r => {
+      const label = (r.name && r.name.trim()) ? r.name.trim() : null;
+      if (!label) return;
+      valMap[label]   = (valMap[label]  || 0) + (Number(r.value) || 0);
+      if (r.prevValue != null) prevMap[label] = (prevMap[label] || 0) + (Number(r.prevValue) || 0);
+      if (r.color) colorMap[label] = r.color;
+    });
+    return Object.entries(valMap)
+      .filter(([, v]) => v > 0)
+      .map(([name, value]) => ({
+        name,
+        value,
+        color: colorMap[name],
+        prevValue: prevMap[name] ?? null,
+      }));
+  }, [revenueSplits]);
 
   // Sparkline arrays from last 14 trend points
   const sparkRev = useMemo(() => trendData.slice(-14).map(r => r.revenue),  [trendData]);
   const sparkVis = useMemo(() => trendData.slice(-14).map(r => r.visitors), [trendData]);
-  const sparkTix = useMemo(() => trendData.slice(-14).map(r => r.tickets),  [trendData]);
 
   return (
     <div className="app">
@@ -138,8 +156,12 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
               (<strong style={{ color: 'var(--ink)' }}>{appliedFilters.range}</strong>)
               <span className="spacer"/>
               {loading && <span className="tag amber">Refreshing widgets…</span>}
-              {appliedFilters.compare && <span className="tag teal">Comparing to previous period</span>}
-              <ExportMenu onExport={onExport}/>
+              {appliedFilters.compare && (
+                <span className="tag teal">
+                  Comparing to {prevPeriodLabel(appliedFilters.range, appliedFilters.date, appliedFilters.dateEnd)}
+                </span>
+              )}
+              <ExportMenu onExport={onExport} appliedFilters={appliedFilters}/>
             </div>
           </div>
 
@@ -148,9 +170,6 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
             {/* ROW 1 — 3 KPI cards with mini sparklines */}
             {(() => {
               const comparing  = kpis?.deltaLabel != null;
-              const deltaLabel = comparing
-                ? prevPeriodLabel(appliedFilters.range, appliedFilters.date, appliedFilters.dateEnd)
-                : null;
 
               const kpiActions = (items, filename, headers, rowsFn) => (
                 <>
@@ -167,7 +186,6 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
                     label="Total Revenue" icon="chart"
                     value={inrFull(catTotal || kpis?.totalRevenue || 0)}
                     delta={comparing ? kpis.deltaRevenue : null}
-                    deltaLabel={deltaLabel}
                     sparkData={sparkRev}
                     sparkColor="var(--teal)"
                     actions={kpiActions(revItems, 'revenue-by-park.csv',
@@ -180,7 +198,6 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
                     label="Total Visitors" icon="users"
                     value={num(kpis?.totalVisitors)}
                     delta={comparing ? kpis.deltaVisitors : null}
-                    deltaLabel={deltaLabel}
                     sparkData={sparkVis}
                     sparkColor="var(--amber)"
                     actions={kpiActions(visItems, 'visitors-by-park.csv',
@@ -189,19 +206,7 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
                     )}
                     extra={<ModernDonut rows={visItems} centerLabel="Visitors" centerValue={num(kpis?.totalVisitors)} formatValue={num}/>}
                   />
-                  <KpiCard
-                    label="Ticket Transactions" icon="ticket"
-                    value={num(kpis?.totalTickets)}
-                    delta={comparing ? kpis.deltaTickets : null}
-                    deltaLabel={deltaLabel}
-                    sparkData={sparkTix}
-                    sparkColor="var(--indigo)"
-                    actions={kpiActions(tixItems, 'tickets-by-source.csv',
-                      ['Source', 'Transactions', 'Share (%)'],
-                      (items) => { const t = items.reduce((s,i)=>s+i.value,0); return items.map(i=>[i.name, i.value, t>0?((i.value/t)*100).toFixed(1):'0']); }
-                    )}
-                    extra={<ModernDonut rows={tixItems} centerLabel="Tickets" centerValue={num(kpis?.totalTickets)} formatValue={num}/>}
-                  />
+                  <ParkHealthWidget parks={parks} filters={appliedFilters}/>
                 </div>
               );
             })()}
@@ -228,7 +233,7 @@ export default function Dashboard({ kpis: initKpis, revenueSplits: initRevenueSp
               />
               <RevenueBarCard
                 title="Revenue by Source"
-                items={revenueSplits?.bySource || []}
+                items={tixItems}
                 colorMap={COLOR_MAPS.source}
                 compare={appliedFilters.compare}
                 range={appliedFilters.range}

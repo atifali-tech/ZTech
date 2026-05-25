@@ -138,6 +138,7 @@ const EXCEPTION_TYPE_TAG = {
 export default function ParkWorkspaceFinance({ parkId }) {
   const { can } = useAuth();
 
+  const [subTab,         setSubTab]         = useState('settlements');
   const [settlements,    setSettlements]    = useState([]);
   const [recon,          setRecon]          = useState(null);
   const [reconDate,      setReconDate]      = useState(new Date().toISOString().slice(0, 10));
@@ -251,10 +252,37 @@ export default function ParkWorkspaceFinance({ parkId }) {
     finally { setResolving(null); }
   };
 
+  const SUB_TABS = [
+    { id: 'settlements',    label: 'Settlements'   },
+    { id: 'reconciliation', label: 'Reconciliation', hidden: !can('finance.reconcile') },
+  ].filter(t => !t.hidden);
+
   return (
     <>
+      {/* Sub-navigation */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+        {SUB_TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setSubTab(t.id)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '8px 18px',
+              fontSize: 13, fontWeight: subTab === t.id ? 600 : 400,
+              color: subTab === t.id ? 'var(--teal)' : 'var(--ink-3)',
+              borderBottom: subTab === t.id ? '2px solid var(--teal)' : '2px solid transparent',
+              marginBottom: -1,
+              whiteSpace: 'nowrap',
+              transition: 'color .15s',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Settlements section */}
-      <div className="sec">
+      {subTab === 'settlements' && <div className="sec">
         <div className="sec-head">
           <div className="sec-title">Settlements</div>
           <span className="tag">{settlements.length} shown</span>
@@ -393,10 +421,10 @@ export default function ParkWorkspaceFinance({ parkId }) {
             </table>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Reconciliation section */}
-      {can('finance.reconcile') && (
+      {subTab === 'reconciliation' && can('finance.reconcile') && (
         <div className="sec">
           <div className="sec-head">
             <div className="sec-title">Reconciliation</div>

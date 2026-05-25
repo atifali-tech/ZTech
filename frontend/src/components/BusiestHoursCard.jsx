@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Icon from './Icon';
-import { num, inr, prevPeriodLabel, downloadCSV } from '../lib/format';
+import { num, inr, downloadCSV } from '../lib/format';
 import { Section, Delta } from './Primitives';
 
 function fmtHour(h) {
@@ -23,7 +23,7 @@ export default function BusiestHoursCard({ busiestByPark = [], appliedFilters })
   const max           = Math.max(...busiestByPark.map(p => p.ticketCount), 1);
 
   const title = isSinglePark ? `Busiest Window · ${selectedParks[0]}` : 'Busiest Hours by Park';
-  const sub   = compare ? prevPeriodLabel(appliedFilters?.range, appliedFilters?.date, appliedFilters?.dateEnd) : '';
+  const sub   = '';
 
   const gridCols = compare
     ? '2fr 110px 3fr 120px 90px'

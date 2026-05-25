@@ -87,6 +87,8 @@ export const api = {
   // Parks CRUD
   allParks:     ()       => get('/api/parks'),
   park:         (id)     => get(`/api/parks/${id}`),
+  parkSummary:  (id)     => get(`/api/parks/${id}/summary`),
+  alerts:       (p = {}) => get(`/api/operations/alerts?${new URLSearchParams(p)}`),
   createPark:   (body)   => post('/api/parks', body),
   updatePark:   (id, b)  => put(`/api/parks/${id}`, b),
   deletePark:   (id)     => del(`/api/parks/${id}`),

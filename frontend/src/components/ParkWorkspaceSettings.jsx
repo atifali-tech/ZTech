@@ -3,10 +3,11 @@ import { useState, useEffect, useRef } from 'react';
 import Icon    from './Icon';
 import Toast   from './Toast';
 import { useAuth } from '../lib/auth-context';
+import { PARK_COLORS_ORDERED } from '../lib/parkColors';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-const PRESET_COLORS = ['#1D9E75','#378ADD','#E24B4A','#EF9F27','#7F77DD','#E8B84B','#5DCAA5','#62ADE8'];
+const PRESET_COLORS = PARK_COLORS_ORDERED;
 
 async function apiFetch(path, opts = {}) {
   const res = await fetch(`${BASE}${path}`, { credentials: 'include', ...opts });

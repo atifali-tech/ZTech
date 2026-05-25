@@ -46,8 +46,10 @@ export default function RefundTrendCard() {
   return (
     <div className="sec" style={{ height: '100%' }}>
       <div className="sec-head">
-        <div className="sec-title">Refund Trend</div>
-        <div className="sec-sub">last 30 days</div>
+        <div className="sec-head-main">
+          <div className="sec-title">Refund Trend</div>
+          <div className="sec-sub">last 30 days</div>
+        </div>
         <div className="sec-actions">
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--ink-3)' }}>

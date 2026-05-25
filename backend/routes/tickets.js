@@ -339,6 +339,8 @@ router.get('/', [requirePermission('tickets.view'), parkScope], async (req, res)
 
   const search      = (req.query.search   || '').trim();
   const parkId      = (req.query.park     || '').trim();
+  // parks[] accepts multiple park IDs from the multi-select dropdown
+  const parkIds     = [req.query['parks[]'] ?? req.query.parks].flat().filter(Boolean);
   const ageCategory = (req.query.age      || '').trim();
   const paymentMode = (req.query.payment  || '').trim();
   const status      = (req.query.status   || '').trim();
@@ -368,7 +370,12 @@ router.get('/', [requirePermission('tickets.view'), parkScope], async (req, res)
     params.push(`%${search}%`);
     conditions.push(`(t.ticket_id ILIKE $${params.length} OR t.transaction_id ILIKE $${params.length})`);
   }
-  if (parkId) {
+  if (parkIds.length > 0) {
+    // Multi-select: filter to any of the selected park IDs
+    const phs = parkIds.map((_, i) => `$${params.length + i + 1}`).join(', ');
+    conditions.push(`t.park_id IN (${phs})`);
+    params.push(...parkIds);
+  } else if (parkId) {
     params.push(parkId);
     conditions.push(`t.park_id = (
       SELECT id FROM parks

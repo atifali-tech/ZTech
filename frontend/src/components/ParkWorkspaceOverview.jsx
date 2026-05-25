@@ -49,7 +49,7 @@ function ChecklistItem({ label, done, action, onAction }) {
   );
 }
 
-export default function ParkWorkspaceOverview({ parkId, park, counts, settings, parkManager, pricingConfigured: pricingConfiguredProp, onGoToSettings, onGoToTab }) {
+export default function ParkWorkspaceOverview({ parkId, park, counts, settings, parkManager, pricingConfigured: pricingConfiguredProp, openAlerts, onGoToSettings, onGoToTab }) {
   const { can } = useAuth();
 
   const pricingConfigured = pricingConfiguredProp ?? false;
@@ -215,32 +215,33 @@ export default function ParkWorkspaceOverview({ parkId, park, counts, settings, 
         ))}
       </div>
 
-      {/* ── KPI grid — clickable, navigate to operations sections ── */}
+      {/* ── Operational KPI grid ── */}
       <div className="fin-kpi-grid">
         <KpiBox
-          value={counts?.zones    ?? '—'}
-          label="Zones Configured"
+          value={counts?.zones ?? '—'}
+          label="Zones"
           sub={counts ? `${counts.zones_active ?? 0} active` : null}
           onClick={() => onGoToTab?.('operations', 'zones')}
         />
         <KpiBox
-          value={counts?.gates_active ?? '—'}
-          label="Gates Active"
-          sub={counts ? `${counts.gates ?? 0} total` : null}
-          onClick={() => onGoToTab?.('operations', 'gates')}
-        />
-        <KpiBox
-          value={counts?.counters_active ?? '—'}
-          label="Counters Active"
-          sub={counts ? `${counts.counters ?? 0} total` : null}
+          value={counts?.counters ?? '—'}
+          label="Counters"
+          sub={counts ? `${counts.counters_active ?? 0} active` : null}
           onClick={() => onGoToTab?.('operations', 'counters')}
         />
         <KpiBox
-          value={counts ? `${counts.devices_online ?? 0}/${counts.devices ?? 0}` : '—'}
-          label="Devices Online"
-          sub={counts && counts.devices_online < counts.devices ? 'Some offline' : counts ? 'All online' : null}
-          warn={counts ? counts.devices_online < counts.devices : false}
-          onClick={() => onGoToTab?.('operations', 'devices')}
+          value={counts?.users ?? '—'}
+          label="Assigned Users"
+          sub={counts?.users === 0 ? 'None assigned' : null}
+          warn={counts ? counts.users === 0 : false}
+          onClick={() => onGoToTab?.('users')}
+        />
+        <KpiBox
+          value={openAlerts ?? '—'}
+          label="Open Alerts"
+          sub={openAlerts > 0 ? 'Needs attention' : openAlerts === 0 ? 'All clear' : null}
+          warn={openAlerts > 0}
+          onClick={() => onGoToTab?.('operations', 'alerts')}
         />
       </div>
     </>

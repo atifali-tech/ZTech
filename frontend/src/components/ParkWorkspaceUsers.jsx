@@ -92,8 +92,28 @@ export default function ParkWorkspaceUsers({ parkId }) {
 
   if (loading) return <div className="page-loading"><div className="page-loading-spinner"/><span className="page-loading-text">Loading…</span></div>;
 
+  const countByRole = (role) => parkUsers.filter(u => u.role === role).length;
+
   return (
     <>
+      {/* Role summary cards */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Total Users',    value: parkUsers.length },
+          { label: 'Park Managers',  value: countByRole('Park Manager') },
+          { label: 'Cashiers',       value: countByRole('Cashier') },
+          { label: 'Supervisors',    value: countByRole('Supervisor') },
+        ].map(c => (
+          <div key={c.label} style={{
+            flex: 1, minWidth: 120, background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '12px 16px',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', marginBottom: 4 }}>{c.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: c.value === 0 ? 'var(--ink-5)' : 'var(--ink)', fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 }}>{c.value}</div>
+          </div>
+        ))}
+      </div>
+
       <div className="sec">
         <div className="sec-head">
           <div className="sec-title">Assigned Users</div>

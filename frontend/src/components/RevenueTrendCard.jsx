@@ -102,8 +102,10 @@ export default function RevenueTrendCard({ trendData, loading = false }) {
   return (
     <div className="sec">
       <div className="sec-head">
-        <div className="sec-title">Revenue &amp; Visitor Trend</div>
-        {periodLabel && <div className="sec-sub">{periodLabel}</div>}
+        <div className="sec-head-main">
+          <div className="sec-title">Revenue &amp; Visitor Trend</div>
+          {periodLabel && <div className="sec-sub">{periodLabel}</div>}
+        </div>
         <div className="sec-actions">
           <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginRight: 6 }}>
             {legends.map(s => legendItem(s, metric === 'both' || metric === s.key))}

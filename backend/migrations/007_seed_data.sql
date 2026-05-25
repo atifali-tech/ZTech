@@ -4,13 +4,13 @@
 -- ── Parks ─────────────────────────────────────────────────────────────────────
 
 INSERT INTO parks (id, name, city, state, color_hex) VALUES
-  ('ZP001', 'Jungle Trail',  'Lucknow',    'Uttar Pradesh', '#1D9E75'),
-  ('ZP002', 'UP Darshan',    'Agra',       'Uttar Pradesh', '#5A6BCF'),
-  ('ZP003', 'Harmony',       'Noida',      'Uttar Pradesh', '#D89614'),
-  ('ZP004', 'Gautam Buddha', 'Greater Noida', 'Uttar Pradesh', '#E5604D'),
-  ('ZP005', 'Shivalaya',     'Varanasi',   'Uttar Pradesh', '#8C5BB3'),
-  ('ZP006', 'Saat Ajoobe',   'Mathura',    'Uttar Pradesh', '#0E7C66'),
-  ('ZP007', 'World Park',    'Kanpur',     'Uttar Pradesh', '#8A92A3')
+  ('ZP001', 'Jungle Trail',  'Noida',         'Uttar Pradesh', '#16A34A'),
+  ('ZP002', 'UP Darshan',    'Lucknow',        'Uttar Pradesh', '#2563EB'),
+  ('ZP003', 'Harmony',       'Kanpur',         'Uttar Pradesh', '#F59E0B'),
+  ('ZP004', 'Gautam Buddha', 'Greater Noida',  'Uttar Pradesh', '#DC2626'),
+  ('ZP005', 'World Park',    'Delhi',          'NCT Delhi',     '#7C3AED'),
+  ('ZP006', 'Shivalaya',     'Varanasi',       'Uttar Pradesh', '#06B6D4'),
+  ('ZP007', 'Saat Ajoobe',   'Agra',           'Uttar Pradesh', '#EC4899')
 ON CONFLICT (id) DO NOTHING;
 
 -- ── Super Admin user ──────────────────────────────────────────────────────────

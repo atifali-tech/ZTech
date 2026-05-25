@@ -182,7 +182,7 @@ router.get('/:id', [...requirePermission('parks.view'), parkScope], async (req, 
 
 // ── POST /api/parks ───────────────────────────────────────────────────────────
 router.post('/', requirePermission('parks.create'), async (req, res) => {
-  const { id: providedId, name, city, state, color_hex = '#1D9E75', capacity } = req.body;
+  const { id: providedId, name, city, state, color_hex = '#16A34A', capacity } = req.body;
   if (!name || !city || !state) return res.status(400).json({ error: 'name, city, state required' });
 
   const id = (providedId || generateParkId(name)).slice(0, 10).toUpperCase();

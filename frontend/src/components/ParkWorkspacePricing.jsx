@@ -113,6 +113,26 @@ export default function ParkWorkspacePricing({ parkId }) {
 
   return (
     <>
+      {/* Summary cards */}
+      {tab === 'rules' && !loading && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Active Rules',   value: activeRules.length },
+            { label: 'Categories',     value: [...new Set(activeRules.map(r => r.category))].length },
+            { label: 'Highest Price',  value: activeRules.length ? `₹${Math.max(...activeRules.map(r => parseFloat(r.base_price || 0))).toFixed(0)}` : '—' },
+            { label: 'Last Updated',   value: rules.length ? new Date(Math.max(...rules.map(r => new Date(r.updated_at || r.created_at)))).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+          ].map(c => (
+            <div key={c.label} style={{
+              flex: 1, minWidth: 120, background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '12px 16px',
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', marginBottom: 4 }}>{c.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)', fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 }}>{c.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="sec">
         <div className="sec-head">
@@ -120,9 +140,9 @@ export default function ParkWorkspacePricing({ parkId }) {
           <span className="tag">{activeRules.length} active rules</span>
           <div className="sec-actions">
             <div className="toggle-group">
-              <button className={tab === 'rules'   ? 'on' : ''} onClick={() => setTab('rules')}>Rules</button>
+              <button className={tab === 'rules'   ? 'on' : ''} onClick={() => setTab('rules')}>Active Rules</button>
               <button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>
-                History {history.length > 0 && <span style={{ marginLeft: 4, opacity: 0.7 }}>({history.length})</span>}
+                Change History {history.length > 0 && <span style={{ marginLeft: 4, opacity: 0.7 }}>({history.length})</span>}
               </button>
             </div>
             {can('parks.edit') && (

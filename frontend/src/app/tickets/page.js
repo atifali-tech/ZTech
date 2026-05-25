@@ -9,7 +9,7 @@ export default function TicketsPage() {
       <div className="main">
         <Topbar current="Tickets" icon="ticket"/>
         <div className="canvas">
-          <TicketsClient initialData={null} parks={[]}/>
+          <TicketsClient initialData={null}/>
         </div>
       </div>
     </div>

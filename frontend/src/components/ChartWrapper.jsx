@@ -40,7 +40,7 @@ export default function ChartWrapper({
   return (
     <div className="sec">
       <div className="sec-head">
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="sec-head-main">
           {title && <div className="sec-title">{title}</div>}
           {sub   && <div className="sec-sub">{sub}</div>}
         </div>

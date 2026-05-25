@@ -21,7 +21,6 @@ export default function OpenShiftModal({ parks, counters, onSave, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.park_id) { setErr('Park is required'); return; }
     setSaving(true); setErr('');
     try {
       const result = await apiFetch('/api/operations/shifts', {
@@ -42,45 +41,50 @@ export default function OpenShiftModal({ parks, counters, onSave, onClose }) {
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 420 }}>
         <div className="modal-head">
-          <span>Open Shift</span>
+          <span className="modal-title">Open Shift</span>
           <button className="btn-ghost icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={14}/></button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body">
-          {err && <div className="form-error">{err}</div>}
-          <div className="form-row">
-            <label className="form-label">Park *</label>
-            <select className="form-control" value={form.park_id}
-              onChange={e => setForm(f => ({ ...f, park_id: e.target.value, counter_id: '' }))}>
-              {parks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div className="form-row">
-            <label className="form-label">Counter (optional)</label>
-            <select className="form-control" value={form.counter_id}
+          {err && <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 5, padding: '8px 12px', fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+
+          {parks.length > 1 && (
+            <div className="field">
+              <label className="field-label">Park *</label>
+              <select className="field-input" value={form.park_id}
+                onChange={e => setForm(f => ({ ...f, park_id: e.target.value, counter_id: '' }))}>
+                {parks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="field">
+            <label className="field-label">Counter (optional)</label>
+            <select className="field-input" value={form.counter_id}
               onChange={e => setForm(f => ({ ...f, counter_id: e.target.value }))}>
               <option value="">— None —</option>
               {parkCounters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label className="form-label">Opening Cash</label>
-              <input className="form-control" type="number" min="0" step="0.01"
+
+          <div className="field-row">
+            <div className="field">
+              <label className="field-label">Opening Cash</label>
+              <input className="field-input" type="number" min="0" step="0.01"
                 value={form.opening_cash} onChange={e => setForm(f => ({ ...f, opening_cash: e.target.value }))}
                 placeholder="e.g. 5000"/>
             </div>
-            <div>
-              <label className="form-label">Expected Revenue</label>
-              <input className="form-control" type="number" min="0" step="0.01"
+            <div className="field">
+              <label className="field-label">Expected Revenue</label>
+              <input className="field-input" type="number" min="0" step="0.01"
                 value={form.expected_rev} onChange={e => setForm(f => ({ ...f, expected_rev: e.target.value }))}
                 placeholder="e.g. 50000"/>
             </div>
           </div>
-          <div className="modal-foot">
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Opening…' : 'Open Shift'}</button>
-          </div>
         </form>
+        <div className="modal-foot">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>{saving ? 'Opening…' : 'Open Shift'}</button>
+        </div>
       </div>
     </div>
   );

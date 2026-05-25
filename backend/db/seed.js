@@ -19,11 +19,13 @@ const pool = new Pool({
 
 // ─── SOURCE DATA (mirrors src/data.jsx exactly) ─────────────────────────────
 const PARKS = [
-  { id: 'jt', name: 'Jungle Trail',  city: 'Noida',        state: 'Uttar Pradesh', color: '#0E7C66' },
-  { id: 'ud', name: 'UP Darshan',    city: 'Lucknow',      state: 'Uttar Pradesh', color: '#5A6BCF' },
-  { id: 'dp', name: 'Delhi Park',    city: 'New Delhi',    state: 'Delhi',         color: '#D89614' },
-  { id: 'rb', name: 'Rann Bagh',     city: 'Ahmedabad',    state: 'Gujarat',       color: '#8C5BB3' },
-  { id: 'kk', name: 'Konark Kids',   city: 'Bhubaneswar',  state: 'Odisha',        color: '#E5604D' },
+  { id: 'jt', name: 'Jungle Trail',  city: 'Noida',        state: 'Uttar Pradesh', color: '#16A34A' },
+  { id: 'ud', name: 'UP Darshan',    city: 'Lucknow',      state: 'Uttar Pradesh', color: '#2563EB' },
+  { id: 'ha', name: 'Harmony',       city: 'Kanpur',       state: 'Uttar Pradesh', color: '#F59E0B' },
+  { id: 'gb', name: 'Gautam Buddha', city: 'Greater Noida',state: 'Uttar Pradesh', color: '#DC2626' },
+  { id: 'wp', name: 'World Park',    city: 'Delhi',        state: 'NCT Delhi',     color: '#7C3AED' },
+  { id: 'sh', name: 'Shivalaya',     city: 'Varanasi',     state: 'Uttar Pradesh', color: '#06B6D4' },
+  { id: 'sa', name: 'Saat Ajoobe',   city: 'Agra',         state: 'Uttar Pradesh', color: '#EC4899' },
 ];
 
 // 7-day sparklines (today = May 5, 2026)

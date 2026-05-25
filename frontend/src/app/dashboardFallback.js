@@ -1,11 +1,13 @@
+import { PARK_COLOR_MAP } from '../lib/parkColors';
+
 const colors = {
-  upDarshan:    '#1D9E75',
-  harmony:      '#E24B4A',
-  gautamBuddha: '#378ADD',
-  shivalaya:    '#EF9F27',
-  jungleTrial:  '#D4537E',
-  saatAjoobe:   '#7F77DD',
-  worldPark:    '#34C4C4',
+  upDarshan:    PARK_COLOR_MAP['UP Darshan'],
+  harmony:      PARK_COLOR_MAP['Harmony'],
+  gautamBuddha: PARK_COLOR_MAP['Gautam Buddha'],
+  shivalaya:    PARK_COLOR_MAP['Shivalaya'],
+  jungleTrail:  PARK_COLOR_MAP['Jungle Trail'],
+  saatAjoobe:   PARK_COLOR_MAP['Saat Ajoobe'],
+  worldPark:    PARK_COLOR_MAP['World Park'],
   // revenue split colours (kept separate from park colours)
   teal:   '#0E7C66',
   indigo: '#5A6BCF',
@@ -19,7 +21,7 @@ const parks = [
   { parkId: 'ha', name: 'Harmony',       city: 'Kanpur',        state: 'Uttar Pradesh', color: colors.harmony      },
   { parkId: 'gb', name: 'Gautam Buddha', city: 'Greater Noida', state: 'Uttar Pradesh', color: colors.gautamBuddha },
   { parkId: 'sh', name: 'Shivalaya',     city: 'Varanasi',      state: 'Uttar Pradesh', color: colors.shivalaya    },
-  { parkId: 'jt', name: 'Jungle Trail',  city: 'Noida',         state: 'Uttar Pradesh', color: colors.jungleTrial  },
+  { parkId: 'jt', name: 'Jungle Trail',  city: 'Noida',         state: 'Uttar Pradesh', color: colors.jungleTrail  },
   { parkId: 'sa', name: 'Saat Ajoobe',   city: 'Agra',          state: 'Uttar Pradesh', color: colors.saatAjoobe   },
   { parkId: 'wp', name: 'World Park',    city: 'Delhi',         state: 'NCT Delhi',     color: colors.worldPark    },
 ];
@@ -140,14 +142,14 @@ export const dashboardFallback = {
       { park: 'Harmony',       color: colors.harmony,      weekend: 468000, weekday: 264000 },
       { park: 'Gautam Buddha', color: colors.gautamBuddha, weekend: 412000, weekday: 248000 },
       { park: 'Shivalaya',     color: colors.shivalaya,    weekend: 342000, weekday: 198000 },
-      { park: 'Jungle Trail',  color: colors.jungleTrial,  weekend: 274000, weekday: 162000 },
+      { park: 'Jungle Trail',  color: colors.jungleTrail,  weekend: 274000, weekday: 162000 },
     ],
     footfall: [
       { park: 'UP Darshan',    color: colors.upDarshan,    weekend: 3120, weekday: 1965 },
       { park: 'Harmony',       color: colors.harmony,      weekend: 2760, weekday: 1740 },
       { park: 'Gautam Buddha', color: colors.gautamBuddha, weekend: 2480, weekday: 1640 },
       { park: 'Shivalaya',     color: colors.shivalaya,    weekend: 2100, weekday: 1380 },
-      { park: 'Jungle Trail',  color: colors.jungleTrial,  weekend: 1840, weekday: 1220 },
+      { park: 'Jungle Trail',  color: colors.jungleTrail,  weekend: 1840, weekday: 1220 },
     ],
   },
   comparative: {

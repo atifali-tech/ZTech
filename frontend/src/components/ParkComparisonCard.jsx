@@ -1,8 +1,7 @@
 'use client';
 import { inr } from '../lib/format';
 import { Delta } from './Primitives';
-
-const COLORS = ['#0E7C66','#5A6BCF','#D89614','#E5604D','#8C5BB3','#1F8A4A','#378ADD','#C53A2B'];
+import { getParkColor } from '../lib/parkColors';
 
 export default function ParkComparisonCard({ parks = [], dateLabel = '', compare = false }) {
   const mode = 'revenue'; // Fixed to revenue only
@@ -19,8 +18,10 @@ export default function ParkComparisonCard({ parks = [], dateLabel = '', compare
   return (
     <div className="sec" style={{ height: '100%' }}>
       <div className="sec-head">
-        <div className="sec-title">Park Performance</div>
-        {dateLabel && <div className="sec-sub">{dateLabel}</div>}
+        <div className="sec-head-main">
+          <div className="sec-title">Park Performance</div>
+          {dateLabel && <div className="sec-sub">{dateLabel}</div>}
+        </div>
       </div>
       <div className="sec-body">
         {!sorted.length ? (
@@ -30,7 +31,7 @@ export default function ParkComparisonCard({ parks = [], dateLabel = '', compare
             {sorted.map((p, i) => {
               const val    = p.revenue ?? p.value ?? 0;
               const barPct = maxVal > 0 ? (val / maxVal) * 100 : 0;
-              const color  = COLORS[i % COLORS.length];
+              const color  = getParkColor(p);
               const delta  = compare && p.delta != null ? p.delta : null;
 
               return (

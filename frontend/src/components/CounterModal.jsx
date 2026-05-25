@@ -32,7 +32,7 @@ export default function CounterModal({ counter, parks, zones, users, devices, on
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.park_id || !form.name.trim()) { setErr('Park and name are required'); return; }
+    if (!form.name.trim()) { setErr('Counter name is required'); return; }
     setSaving(true); setErr('');
     try {
       const body = {
@@ -56,73 +56,78 @@ export default function CounterModal({ counter, parks, zones, users, devices, on
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 480 }}>
         <div className="modal-head">
-          <span>{counter ? 'Edit Counter' : 'Add Counter'}</span>
+          <span className="modal-title">{counter ? 'Edit Counter' : 'Add Counter'}</span>
           <button className="btn-ghost icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={14}/></button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body">
-          {err && <div className="form-error">{err}</div>}
-          {!counter && (
-            <div className="form-row">
-              <label className="form-label">Park *</label>
-              <select className="form-control" value={form.park_id}
+          {err && <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 5, padding: '8px 12px', fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+
+          {!counter && parks.length > 1 && (
+            <div className="field">
+              <label className="field-label">Park *</label>
+              <select className="field-input" value={form.park_id}
                 onChange={e => setForm(f => ({ ...f, park_id: e.target.value, zone_id: '', assigned_user_id: '', assigned_device_id: '' }))}>
                 {parks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           )}
-          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label className="form-label">Counter Name *</label>
-              <input className="form-control" value={form.name}
+
+          <div className="field-row">
+            <div className="field">
+              <label className="field-label">Counter Name *</label>
+              <input className="field-input" value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Counter A" required/>
+                placeholder="e.g. Counter A" autoFocus required/>
             </div>
-            <div>
-              <label className="form-label">Counter Type</label>
-              <select className="form-control" value={form.counter_type}
+            <div className="field">
+              <label className="field-label">Counter Type</label>
+              <select className="field-input" value={form.counter_type}
                 onChange={e => setForm(f => ({ ...f, counter_type: e.target.value }))}>
                 {COUNTER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
           </div>
-          <div className="form-row">
-            <label className="form-label">Zone (optional)</label>
-            <select className="form-control" value={form.zone_id}
+
+          <div className="field">
+            <label className="field-label">Zone (optional)</label>
+            <select className="field-input" value={form.zone_id}
               onChange={e => setForm(f => ({ ...f, zone_id: e.target.value }))}>
               <option value="">— None —</option>
               {parkZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
             </select>
           </div>
-          <div className="form-row">
-            <label className="form-label">Assigned User (optional)</label>
-            <select className="form-control" value={form.assigned_user_id}
+
+          <div className="field">
+            <label className="field-label">Assigned User (optional)</label>
+            <select className="field-input" value={form.assigned_user_id}
               onChange={e => setForm(f => ({ ...f, assigned_user_id: e.target.value }))}>
               <option value="">— None —</option>
               {parkUsers.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
             </select>
           </div>
-          <div className="form-row">
-            <label className="form-label">Assigned Device (optional)</label>
-            <select className="form-control" value={form.assigned_device_id}
+
+          <div className="field">
+            <label className="field-label">Assigned Device (optional)</label>
+            <select className="field-input" value={form.assigned_device_id}
               onChange={e => setForm(f => ({ ...f, assigned_device_id: e.target.value }))}>
               <option value="">— None —</option>
               {parkDevices.map(d => <option key={d.id} value={d.id}>{d.name} ({d.device_type})</option>)}
             </select>
           </div>
+
           {counter && (
-            <div className="form-row">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-                <input type="checkbox" checked={form.is_active}
-                  onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}/>
-                Active
-              </label>
-            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--ink-2)' }}>
+              <input type="checkbox" checked={form.is_active}
+                onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
+                style={{ accentColor: 'var(--teal)', width: 14, height: 14 }}/>
+              Active
+            </label>
           )}
-          <div className="modal-foot">
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-          </div>
         </form>
+        <div className="modal-foot">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
       </div>
     </div>
   );

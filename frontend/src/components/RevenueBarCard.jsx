@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Icon from './Icon';
-import { inr, prevPeriodLabel, downloadCSV } from '../lib/format';
+import { inr, downloadCSV } from '../lib/format';
 import { Delta } from './Primitives';
 
 const pct = (curr, prev) => prev > 0 ? parseFloat(((curr - prev) / prev * 100).toFixed(1)) : null;
@@ -28,8 +28,9 @@ export default function RevenueBarCard({ title, items = [], colorMap = {}, compa
   return (
     <div className="sec">
       <div className="sec-head">
-        <div className="sec-title">{title}</div>
-        {compare && <div className="sec-sub" style={{ marginLeft: 0 }}>{prevPeriodLabel(range, date, dateEnd)}</div>}
+        <div className="sec-head-main">
+          <div className="sec-title">{title}</div>
+        </div>
         <div className="sec-actions">
           <button className="btn btn-sm icon-btn" title={tableView ? 'Chart view' : 'Table view'} onClick={() => setTableView(v => !v)}>
             <Icon name={tableView ? 'chart' : 'table'} size={13}/>

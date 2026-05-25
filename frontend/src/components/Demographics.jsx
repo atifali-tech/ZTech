@@ -84,8 +84,10 @@ export default function DemographicsSection({ data, headerExtra = null }) {
   return (
     <div className="sec">
       <div className="sec-head">
-        <div className="sec-title">Demographics</div>
-        <div className="sec-sub">{num(data.total)} visitors · split by age &amp; gender</div>
+        <div className="sec-head-main">
+          <div className="sec-title">Demographics</div>
+          <div className="sec-sub">{num(data.total)} visitors · split by age &amp; gender</div>
+        </div>
         <div className="sec-actions"><span className="tag">Snapshot · today</span>{headerExtra}</div>
       </div>
       <div className="demo-grid">

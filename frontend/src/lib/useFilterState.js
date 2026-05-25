@@ -13,7 +13,7 @@ export function makeDefaultFilters(range = 'Monthly') {
     range,
     date,
     dateEnd,
-    compare: false,
+    compare: true,
   };
 }
 

@@ -35,15 +35,6 @@ const TABS = [
   { id: 'settings',    label: 'Settings',    icon: 'cog'      },
 ];
 
-const QUICK_ACTIONS = [
-  { label: 'Add Zone',          icon: 'map',      tab: 'operations', section: 'zones'      },
-  { label: 'Add Gate',          icon: 'activity', tab: 'operations', section: 'gates'      },
-  { label: 'Add Counter',       icon: 'grid',     tab: 'operations', section: 'counters'   },
-  { label: 'Add Device',        icon: 'shield',   tab: 'operations', section: 'devices'    },
-  { label: 'Assign User',       icon: 'users',    tab: 'users',      section: null         },
-  { label: 'Pricing',           icon: 'ticket',   tab: 'pricing',    section: null         },
-];
-
 // Derive a health status from setup % and alert presence
 function getHealthStatus(pct, hasAlerts) {
   if (hasAlerts) return { label: 'Attention Required', color: 'var(--red)',    bg: 'rgba(226,75,74,.10)'  };
@@ -56,7 +47,8 @@ export default function ParkWorkspaceClient({ parkId }) {
   const router = useRouter();
   const { can } = useAuth();
 
-  const [summary, setSummary]   = useState(null);
+  const [summary,    setSummary]    = useState(null);
+  const [openAlerts, setOpenAlerts] = useState(null);
   const [loading, setLoading]   = useState(true);
   const [error,   setError]     = useState(null);
   const [tab,     setTab]       = useState('overview');
@@ -72,8 +64,12 @@ export default function ParkWorkspaceClient({ parkId }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch(`/api/parks/${parkId}/summary`);
+      const [data, alerts] = await Promise.all([
+        apiFetch(`/api/parks/${parkId}/summary`),
+        apiFetch(`/api/operations/alerts?park_id=${parkId}&status=open&limit=100`).catch(() => []),
+      ]);
       setSummary(data);
+      setOpenAlerts(Array.isArray(alerts) ? alerts.length : 0);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -205,7 +201,11 @@ export default function ParkWorkspaceClient({ parkId }) {
                   fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
                   color: health.color, background: health.bg,
                   border: `1px solid ${health.color}30`,
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
                 }}>
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                  }}>{setupPct}%</span>
                   {health.label}
                 </span>
 
@@ -215,46 +215,35 @@ export default function ParkWorkspaceClient({ parkId }) {
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 2 }}>
-                {[park?.city, park?.state].filter(Boolean).join(', ')}
-                {park?.capacity ? ` · Capacity ${park.capacity.toLocaleString()}` : ''}
+              <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span>{[park?.city, park?.state].filter(Boolean).join(', ')}</span>
+                {park?.capacity ? <span>· Capacity {park.capacity.toLocaleString()}</span> : null}
+                {parkManager ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: 'var(--border)' }}>·</span>
+                    <Icon name="users" size={11} color="var(--ink-5)"/>
+                    <span>{parkManager.name}</span>
+                  </span>
+                ) : (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#8A5E0B' }}>
+                    <span style={{ color: 'var(--border)' }}>·</span>
+                    <Icon name="users" size={11} color="#8A5E0B"/>
+                    <span>No manager assigned</span>
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* KPI strip */}
-            <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexShrink: 0 }}>
-              {[
-                { label: 'Zones',    val: counts?.zones    ?? '—' },
-                { label: 'Counters', val: counts?.counters ?? '—' },
-                { label: 'Devices',  val: counts?.devices  ?? '—' },
-                { label: 'Users',    val: counts?.users    ?? '—' },
-              ].map(({ label, val }) => (
-                <div key={label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--ink)', lineHeight: 1 }}>{val}</div>
-                  <div style={{ fontSize: 10, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 2 }}>{label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Quick Actions — permission-gated */}
+            {/* Edit Park button */}
             {can('parks.edit') && (
-              <div style={{
-                display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0,
-                borderLeft: '1px solid var(--border)', paddingLeft: 16,
-              }}>
-                {QUICK_ACTIONS.map(a => (
-                  <button
-                    key={a.label}
-                    className="btn btn-ghost btn-sm"
-                    title={a.label}
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', fontSize: 12 }}
-                    onClick={() => goToTab(a.tab, a.section)}
-                  >
-                    <Icon name={a.icon} size={12} color="var(--ink-3)"/>
-                    <span style={{ whiteSpace: 'nowrap' }}>{a.label}</span>
-                  </button>
-                ))}
-              </div>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}
+                onClick={() => goToTab('settings')}
+              >
+                <Icon name="edit" size={13} color="var(--ink-3)"/>
+                Edit Park
+              </button>
             )}
           </div>
 
@@ -288,6 +277,7 @@ export default function ParkWorkspaceClient({ parkId }) {
               parkId={parkId} park={park} counts={counts} settings={settings}
               parkManager={parkManager}
               pricingConfigured={pricingConfigured}
+              openAlerts={openAlerts}
               onGoToSettings={() => goToTab('settings')}
               onGoToTab={goToTab}
             />

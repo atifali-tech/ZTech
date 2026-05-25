@@ -46,8 +46,10 @@ export function Section({ title, sub, actions, children, padded = true }) {
     <div className="sec">
       {(title || actions) && (
         <div className="sec-head">
-          {title && <div className="sec-title">{title}</div>}
-          {sub   && <div className="sec-sub">{sub}</div>}
+          <div className="sec-head-main">
+            {title && <div className="sec-title">{title}</div>}
+            {sub   && <div className="sec-sub">{sub}</div>}
+          </div>
           {actions && <div className="sec-actions">{actions}</div>}
         </div>
       )}

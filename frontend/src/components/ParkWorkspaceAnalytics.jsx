@@ -151,7 +151,23 @@ export default function ParkWorkspaceAnalytics({ parkId, park }) {
         {loading && <span style={{ fontSize: 12, color: 'var(--ink-4)', marginLeft: 8 }}>Loading…</span>}
       </div>
 
-      {!loading && data && (
+      {!loading && data && data.totalTickets === 0 && data.closedShifts === 0 && data.settlementCount === 0 && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '64px 24px', textAlign: 'center',
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+        }}>
+          <Icon name="chart" size={40} color="var(--ink-5)"/>
+          <div style={{ marginTop: 16, fontSize: 15, fontWeight: 600, color: 'var(--ink-3)' }}>
+            No ticket activity for this period
+          </div>
+          <div style={{ marginTop: 8, fontSize: 13, color: 'var(--ink-4)', maxWidth: 340 }}>
+            Analytics will appear once ticket sales begin. Try selecting a different date range.
+          </div>
+        </div>
+      )}
+
+      {!loading && data && (data.totalTickets > 0 || data.closedShifts > 0 || data.settlementCount > 0) && (
         <>
           {/* Revenue KPIs */}
           <div className="sec">
@@ -245,15 +261,6 @@ export default function ParkWorkspaceAnalytics({ parkId, park }) {
             </div>
           </div>
 
-          {/* Empty state if no data at all */}
-          {data.totalTickets === 0 && data.closedShifts === 0 && data.settlementCount === 0 && (
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <Icon name="chart" size={32} color="var(--ink-5)"/>
-              <div style={{ marginTop: 10, fontSize: 13, color: 'var(--ink-4)' }}>
-                No data found for the selected period.
-              </div>
-            </div>
-          )}
         </>
       )}
 

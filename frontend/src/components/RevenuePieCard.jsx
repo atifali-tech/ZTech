@@ -2,15 +2,18 @@
 import { useState } from 'react';
 import DonutChart from './DonutChart';
 import Icon from './Icon';
-import { inr, prevPeriodLabel, downloadCSV } from '../lib/format';
+import { inr, downloadCSV } from '../lib/format';
 import { Delta } from './Primitives';
 
 const pct = (curr, prev) => prev > 0 ? parseFloat(((curr - prev) / prev * 100).toFixed(1)) : null;
 
-const CAT_COLORS = { Tickets: '#1D9E75', 'F&B': '#E24B4A', Activities: '#378ADD', Parking: '#EF9F27' };
-const PMT_COLORS = { UPI: '#378ADD', Cash: '#1D9E75', Card: '#7F77DD', Others: '#EF9F27' };
+// Green (#16A34A) is reserved exclusively for Jungle Trail park.
+// Category / payment / source colors must not clash with any park color.
+const CAT_COLORS = { Tickets: '#0891B2', 'F&B': '#E24B4A', Activities: '#7C3AED', Parking: '#F59E0B' };
+const PMT_COLORS = { UPI: '#2563EB', Cash: '#64748B', Card: '#8B5CF6', Others: '#F97316' };
+const SRC_COLORS = { Counter: '#0891B2', Web: '#6366F1', App: '#F97316', WhatsApp: '#10B981', 'Unknown Source': '#94A3B8' };
 
-export const COLOR_MAPS = { category: CAT_COLORS, payment: PMT_COLORS };
+export const COLOR_MAPS = { category: CAT_COLORS, payment: PMT_COLORS, source: SRC_COLORS };
 
 // Shared legend row — col1: dot+name | col2: value right-aligned
 function PieLegendRow({ label, value, color, formatValue, compact = false }) {
@@ -126,8 +129,9 @@ export default function RevenuePieCard({ title, items = [], colorMap = {}, compa
   return (
     <div className="sec">
       <div className="sec-head">
-        <div className="sec-title">{title}</div>
-        {compare && <div className="sec-sub" style={{ marginLeft: 0 }}>{prevPeriodLabel(range, date, dateEnd)}</div>}
+        <div className="sec-head-main">
+          <div className="sec-title">{title}</div>
+        </div>
         <div className="sec-actions">
           <button className="btn btn-sm icon-btn" title={tableView ? 'Chart view' : 'Table view'} onClick={() => setTableView(v => !v)}>
             <Icon name={tableView ? 'chart' : 'table'} size={13}/>

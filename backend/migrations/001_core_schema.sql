@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS parks (
   name      VARCHAR(100) NOT NULL,
   city      VARCHAR(50)  NOT NULL,
   state     VARCHAR(50)  NOT NULL,
-  color_hex VARCHAR(7)   NOT NULL DEFAULT '#1D9E75',
+  color_hex VARCHAR(7)   NOT NULL DEFAULT '#16A34A',
   capacity  INTEGER
 );
 

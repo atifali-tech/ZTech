@@ -4,11 +4,13 @@ import { num } from '../lib/format';
 import Icon        from './Icon';
 import { useAuth } from '../lib/auth-context';
 import { computeDefaultDates } from '../lib/filterDefaults';
+import { api } from '../lib/api';
 import DatePicker    from './DatePicker';
 import WeekPicker    from './WeekPicker';
 import MonthPicker   from './MonthPicker';
 import QuarterPicker from './QuarterPicker';
 import YearPicker    from './YearPicker';
+import ParkDropdown  from './ParkDropdown';
 
 // ─── Constants ───────────────────────────────────────────────
 const AGE_CATS   = ['', 'Adult', 'Child', 'Toddler', 'Senior Citizen'];
@@ -177,7 +179,7 @@ function FiltersBar({ filters, setFilters, parks, onSearch }) {
     <div className="filterbar" style={{ flexWrap: 'nowrap', alignItems: 'flex-end' }}>
       <div className="filter-field" style={{ flex: 1, minWidth: 0 }}>
         <label className="filter-label">Search</label>
-        <input className="filter-input" placeholder="Ticket ID (e.g. TK-ABC123)"
+        <input className="filter-input" placeholder="Ticket ID"
           value={filters.search}
           onChange={e => set('search', e.target.value)}
           onKeyDown={e => e.key === 'Enter' && onSearch()}/>
@@ -185,10 +187,7 @@ function FiltersBar({ filters, setFilters, parks, onSearch }) {
 
       <div className="filter-field" style={{ minWidth: 0 }}>
         <label className="filter-label">Park</label>
-        <select className="filter-select" value={filters.park} onChange={e => set('park', e.target.value)}>
-          <option value="">All Parks</option>
-          {parks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <ParkDropdown parks={parks} selected={filters.parks} onChange={v => set('parks', v)}/>
       </div>
 
       <div className="filter-field" style={{ minWidth: 0 }}>
@@ -250,7 +249,7 @@ function FiltersBar({ filters, setFilters, parks, onSearch }) {
         </button>
         <button className="btn btn-sm" onClick={() => {
           const { date, dateEnd } = computeDefaultDates('Monthly');
-          setFilters({ search: '', park: '', age: '', payment: '', status: '', range: 'Monthly', date, dateEnd });
+          setFilters({ search: '', parks: [], age: '', payment: '', status: '', range: 'Monthly', date, dateEnd });
         }}>Reset</button>
       </div>
     </div>
@@ -258,11 +257,16 @@ function FiltersBar({ filters, setFilters, parks, onSearch }) {
 }
 
 // ─── Main component ───────────────────────────────────────────
-export default function TicketsClient({ initialData, parks }) {
+export default function TicketsClient({ initialData }) {
   const { can } = useAuth();
   const initDates = computeDefaultDates('Monthly');
+  const [parks,   setParks]   = useState([]);
   const [data,    setData]    = useState(initialData);
-  const [filters, setFilters] = useState({ search: '', park: '', age: '', payment: '', status: '', range: 'Monthly', date: initDates.date, dateEnd: initDates.dateEnd });
+  const [filters, setFilters] = useState({ search: '', parks: [], age: '', payment: '', status: '', range: 'Monthly', date: initDates.date, dateEnd: initDates.dateEnd });
+
+  useEffect(() => {
+    api.parks().then(setParks).catch(() => {});
+  }, []);
   const [sort,    setSort]    = useState({ col: 'created_at', dir: 'desc' });
   const [page,    setPage]    = useState(1);
   const [limit,   setLimit]   = useState(25);
@@ -274,24 +278,23 @@ export default function TicketsClient({ initialData, parks }) {
   const fetchRef = useRef(null);
   const didInitialFetch = useRef(false);
   fetchRef.current = async (overrides = {}) => {
-    const params = {
-      page:     overrides.page    ?? page,
-      limit:    overrides.limit   ?? limit,
-      sort:     overrides.sort    ?? sort.col,
-      dir:      overrides.dir     ?? sort.dir,
-      search:   filters.search,
-      park:     filters.park,
-      age:      filters.age,
-      payment:  filters.payment,
-      status:   filters.status,
-      dateFrom: filters.date,
-      dateTo:   filters.dateEnd,
-      ...overrides,
-    };
-    Object.keys(params).forEach(k => { if (params[k] === '') delete params[k]; });
+    const f = { ...filters, ...overrides };
     const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const qs   = new URLSearchParams(params).toString();
-    const res  = await fetch(`${BASE}/api/tickets?${qs}`, { cache: 'no-store', credentials: 'include' });
+    const qs = new URLSearchParams();
+    qs.set('page',     String(overrides.page    ?? page));
+    qs.set('limit',    String(overrides.limit   ?? limit));
+    qs.set('sort',     overrides.sort    ?? sort.col);
+    qs.set('dir',      overrides.dir     ?? sort.dir);
+    if (f.search)   qs.set('search',   f.search);
+    if (f.age)      qs.set('age',      f.age);
+    if (f.payment)  qs.set('payment',  f.payment);
+    if (f.status)   qs.set('status',   f.status);
+    if (f.date)     qs.set('dateFrom', f.date);
+    if (f.dateEnd)  qs.set('dateTo',   f.dateEnd);
+    // Translate selected park names → IDs and send as parks[]=id
+    const nameToId = Object.fromEntries(parks.map(p => [p.name, p.id]));
+    (f.parks || []).forEach(name => { const id = nameToId[name]; if (id) qs.append('parks[]', id); });
+    const res  = await fetch(`${BASE}/api/tickets?${qs.toString()}`, { cache: 'no-store', credentials: 'include' });
     const json = await res.json();
     setData(json);
   };

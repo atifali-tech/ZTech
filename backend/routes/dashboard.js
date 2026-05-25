@@ -428,12 +428,12 @@ router.get('/revenue-splits', analyticsGuard, async (req, res) => {
       }));
 
     // Previous-period breakdown — only when compare=true
-    let prevCatMap = null, prevPayMap = null;
+    let prevCatMap = null, prevPayMap = null, prevSrcMap = null;
     if (compare === 'true') {
       const prevTicketWhere  = `${prevDateSQL(range, date, dateEnd, 'DATE(t.created_at)')} ${ticketParkClauses.length ? `AND ${ticketParkClauses.join(' AND ')}` : ''}`;
       const prevRevenueWhere = `${prevDateSQL(range, date, dateEnd, 'rc.date')} ${revenueParkClauses.length ? `AND ${revenueParkClauses.join(' AND ')}` : ''}`;
 
-      const [prevCat, prevPay] = await Promise.all([
+      const [prevCat, prevPay, prevSrc] = await Promise.all([
         pool.query(`
           SELECT name, SUM(revenue) AS revenue
           FROM (
@@ -455,16 +455,23 @@ router.get('/revenue-splits', analyticsGuard, async (req, res) => {
           WHERE ${prevTicketWhere}
           GROUP BY 1
         `, params),
+        pool.query(`
+          SELECT TRIM(t.source) AS name, COUNT(DISTINCT t.ticket_id)::numeric AS revenue
+          FROM tickets t
+          WHERE ${prevTicketWhere}
+          GROUP BY 1
+        `, params),
       ]);
 
       prevCatMap = Object.fromEntries(prevCat.rows.map(r => [r.name, parseFloat(r.revenue)]));
       prevPayMap = Object.fromEntries(prevPay.rows.map(r => [r.name, parseFloat(r.revenue)]));
+      prevSrcMap = Object.fromEntries(prevSrc.rows.map(r => [r.name, parseFloat(r.revenue)]));
     }
 
     res.json({
       byDemographic: addColors(demo.rows, DEMO_COLORS),
       byCategory:    addColors(cat.rows,  CAT_COLORS, prevCatMap),
-      bySource:      addColors(src.rows,  SRC_COLORS),
+      bySource:      addColors(src.rows,  SRC_COLORS, prevSrcMap),
       byPayment:     addColors(pay.rows,  PAY_COLORS, prevPayMap),
     });
   } catch (err) {

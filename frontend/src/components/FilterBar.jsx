@@ -184,7 +184,7 @@ export default function FilterBar({ filters, setFilters, onApply, showCity = tru
         </div>
       )}
 
-      <div style={{flex:'0 0 1px',alignSelf:'stretch',background:'var(--border)',margin:'0 4px',marginTop:14}}/>
+      <div style={{flex:'0 0 1px',alignSelf:'flex-end',height:32,background:'var(--border)',margin:'0 4px'}}/>
 
       <button className={`compare-toggle${filters.compare?' on':''}`}
         onClick={()=>setFilters(f=>({...f,compare:!f.compare}))}>

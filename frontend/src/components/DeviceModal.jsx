@@ -30,7 +30,7 @@ export default function DeviceModal({ device, parks, counters, onSave, onClose }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.park_id || !form.name.trim()) { setErr('Park and name are required'); return; }
+    if (!form.name.trim()) { setErr('Device name is required'); return; }
     setSaving(true); setErr('');
     try {
       const body = {
@@ -53,63 +53,68 @@ export default function DeviceModal({ device, parks, counters, onSave, onClose }
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 460 }}>
         <div className="modal-head">
-          <span>{device ? 'Edit Device' : 'Add Device'}</span>
+          <span className="modal-title">{device ? 'Edit Device' : 'Add Device'}</span>
           <button className="btn-ghost icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={14}/></button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body">
-          {err && <div className="form-error">{err}</div>}
-          {!device && (
-            <div className="form-row">
-              <label className="form-label">Park *</label>
-              <select className="form-control" value={form.park_id}
+          {err && <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 5, padding: '8px 12px', fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+
+          {!device && parks.length > 1 && (
+            <div className="field">
+              <label className="field-label">Park *</label>
+              <select className="field-input" value={form.park_id}
                 onChange={e => setForm(f => ({ ...f, park_id: e.target.value, counter_id: '' }))}>
                 {parks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           )}
-          <div className="form-row">
-            <label className="form-label">Device Name *</label>
-            <input className="form-control" value={form.name}
+
+          <div className="field">
+            <label className="field-label">Device Name *</label>
+            <input className="field-input" value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. POS-01" required/>
+              placeholder="e.g. POS-01" autoFocus required/>
           </div>
-          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label className="form-label">Device Type</label>
-              <select className="form-control" value={form.device_type}
+
+          <div className="field-row">
+            <div className="field">
+              <label className="field-label">Device Type</label>
+              <select className="field-input" value={form.device_type}
                 onChange={e => setForm(f => ({ ...f, device_type: e.target.value }))}>
                 {DEVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <div>
-              <label className="form-label">Software Version</label>
-              <input className="form-control" value={form.software_version}
+            <div className="field">
+              <label className="field-label">Software Version</label>
+              <input className="field-input" value={form.software_version}
                 onChange={e => setForm(f => ({ ...f, software_version: e.target.value }))}
                 placeholder="e.g. v2.1.0"/>
             </div>
           </div>
-          <div className="form-row">
-            <label className="form-label">Assigned Counter (optional)</label>
-            <select className="form-control" value={form.counter_id}
+
+          <div className="field">
+            <label className="field-label">Assigned Counter (optional)</label>
+            <select className="field-input" value={form.counter_id}
               onChange={e => setForm(f => ({ ...f, counter_id: e.target.value }))}>
               <option value="">— None —</option>
               {parkCounters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
+
           {device && (
-            <div className="form-row">
-              <label className="form-label">Status</label>
-              <select className="form-control" value={form.status}
+            <div className="field">
+              <label className="field-label">Status</label>
+              <select className="field-input" value={form.status}
                 onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                 {DEVICE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           )}
-          <div className="modal-foot">
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-          </div>
         </form>
+        <div className="modal-foot">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
       </div>
     </div>
   );
