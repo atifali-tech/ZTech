@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS user_parks (
 -- id (SERIAL) is a surrogate integer PK used by refund_requests and reconciliation FKs.
 
 CREATE TABLE IF NOT EXISTS tickets (
-  id             SERIAL,
+  id             SERIAL        PRIMARY KEY,
   ticket_id      VARCHAR(20)   NOT NULL,
   transaction_id VARCHAR(20),
   park_id        VARCHAR(10)   NOT NULL REFERENCES parks(id),
@@ -61,51 +61,12 @@ CREATE TABLE IF NOT EXISTS tickets (
   device_id      VARCHAR(50),
   gender         VARCHAR(10),
   is_reversal    BOOLEAN       NOT NULL DEFAULT FALSE,
-  reversal_of    INTEGER,
+  reversal_of    INTEGER       REFERENCES tickets(id) NOT VALID,
   gst_rate_id    INTEGER,
   tax_invoice_no VARCHAR(64),
   created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (ticket_id, age_category)
+  UNIQUE (ticket_id, age_category)
 );
-
--- Ensure surrogate id column exists (table may pre-exist without it)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'tickets' AND column_name = 'id'
-  ) THEN
-    ALTER TABLE tickets ADD COLUMN id SERIAL;
-  END IF;
-END$$;
-
--- Unique constraint on the surrogate id column (used as FK target by refund_requests etc.)
--- NOTE: a unique INDEX alone is not enough for PostgreSQL FK targets — must be a CONSTRAINT.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_name = 'tickets_id_unique'
-      AND table_name = 'tickets'
-  ) THEN
-    ALTER TABLE tickets ADD CONSTRAINT tickets_id_unique UNIQUE (id);
-  END IF;
-END$$;
-
--- Self-referencing FK for reversals
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_name = 'fk_tickets_reversal_of'
-      AND table_name = 'tickets'
-  ) THEN
-    ALTER TABLE tickets
-      ADD CONSTRAINT fk_tickets_reversal_of
-      FOREIGN KEY (reversal_of) REFERENCES tickets(id)
-      NOT VALID;
-  END IF;
-END$$;
 
 CREATE INDEX IF NOT EXISTS idx_tickets_ticket_id  ON tickets (ticket_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_park_date  ON tickets (park_id, created_at);
