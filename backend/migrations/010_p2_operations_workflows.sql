@@ -31,9 +31,14 @@ BEGIN
   END IF;
 END$$;
 
-ALTER TABLE shift_sessions
-  ADD CONSTRAINT chk_shift_status
-  CHECK (status IN ('Open','Operating','Closed','Reconciled','Variance Flagged'));
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='chk_shift_status') THEN
+    ALTER TABLE shift_sessions
+      ADD CONSTRAINT chk_shift_status
+      CHECK (status IN ('Open','Operating','Closed','Reconciled','Variance Flagged'));
+  END IF;
+END$$;
 
 CREATE INDEX IF NOT EXISTS idx_shift_sessions_supervisor ON shift_sessions (supervisor_id);
 
