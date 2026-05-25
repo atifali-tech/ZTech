@@ -124,7 +124,7 @@ BEGIN
           CASE v_pay WHEN 'Card' THEN v_total ELSE 0 END,
           v_pay, v_source, 'Confirmed', v_cashier_id
         )
-        ON CONFLICT (ticket_id) DO NOTHING;
+        ON CONFLICT (ticket_id, age_category) DO NOTHING;
 
       END LOOP; -- tickets per day
     END LOOP;   -- days
