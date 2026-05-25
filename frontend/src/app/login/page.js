@@ -1,11 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '../../lib/auth-context';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { setUser } = useAuth();
   const [email,    setEmail]       = useState('');
   const [password, setPassword]    = useState('');
   const [showPass, setShowPass]    = useState(false);
@@ -26,6 +28,11 @@ export default function LoginPage() {
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Login failed');
+      }
+      const meRes = await fetch(`${BASE}/api/auth/me`, { credentials: 'include' });
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData?.user) setUser(meData.user);
       }
       router.push('/');
     } catch (err) {
