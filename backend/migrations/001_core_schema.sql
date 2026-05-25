@@ -68,8 +68,18 @@ CREATE TABLE IF NOT EXISTS tickets (
   PRIMARY KEY (ticket_id, age_category)
 );
 
--- Unique index on the surrogate id column (used as FK target by refund_requests etc.)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_id ON tickets (id);
+-- Unique constraint on the surrogate id column (used as FK target by refund_requests etc.)
+-- NOTE: a unique INDEX alone is not enough for PostgreSQL FK targets — must be a CONSTRAINT.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'tickets_id_unique'
+      AND table_name = 'tickets'
+  ) THEN
+    ALTER TABLE tickets ADD CONSTRAINT tickets_id_unique UNIQUE (id);
+  END IF;
+END$$;
 
 -- Self-referencing FK for reversals
 DO $$
